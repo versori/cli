@@ -1,0 +1,16 @@
+package: v1
+generate:
+  models: true
+output: types.gen.go
+compatibility:
+  always-prefix-enum-values: true
+output-options:
+  skip-prune: true
+  user-templates:
+    # the default template prefixes the description with the type name, which we already do as part of each schema
+    # definition, so override the template with prefix="".
+    typedef.tmpl: |
+      {{range .Types}}
+      {{ if .Schema.Description }}{{ toGoComment .Schema.Description ""  }}{{ else }}// {{.TypeName}} defines model for {{.JsonName}}.{{ end }}
+      type {{.TypeName}} {{if .IsAlias }}={{end}} {{.Schema.TypeDecl}}
+      {{end}}
