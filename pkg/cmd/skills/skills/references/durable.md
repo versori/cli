@@ -6,13 +6,13 @@ Use `DurableInterpreter` for long-running processes, batch processing with retry
 
 | Interpreter | When to use |
 |---|---|
-| `MemoryInterpreter` | Regular workflows — schedules, webhooks, basic HTTP tasks |
-| `DurableInterpreter` | Long-running, retry-required, or guaranteed-execution workflows |
+| `DurableInterpreter` | **Default.** Production workflows with persistent KV. Use almost every time. |
+| `MemoryInterpreter` | Development, testing, simple deployments without persistent KV. |
 
 ## Structure
 
 ```typescript
-import { durable, workflow, http, fn, DurableInterpreter } from '@versori/run';
+import { durable, workflow, http, fn } from '@versori/run';
 
 const durableWorkflow = durable(
     'process-large-batch',
@@ -40,7 +40,7 @@ const durableWorkflow = durable(
 );
 
 async function main(): Promise<void> {
-    const di = await DurableInterpreter.newInstance();
+    const di = await durable.DurableInterpreter.newInstance();
     di.register(durableWorkflow);
     await di.start();
 
