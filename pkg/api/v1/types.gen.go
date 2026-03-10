@@ -162,6 +162,17 @@ const (
 	HTTPMethodPUT     HTTPMethod = "PUT"
 )
 
+// Defines values for IntegrationCallHTTPRequestMethod.
+const (
+	IntegrationCallHTTPRequestMethodDELETE  IntegrationCallHTTPRequestMethod = "DELETE"
+	IntegrationCallHTTPRequestMethodGET     IntegrationCallHTTPRequestMethod = "GET"
+	IntegrationCallHTTPRequestMethodHEAD    IntegrationCallHTTPRequestMethod = "HEAD"
+	IntegrationCallHTTPRequestMethodOPTIONS IntegrationCallHTTPRequestMethod = "OPTIONS"
+	IntegrationCallHTTPRequestMethodPATCH   IntegrationCallHTTPRequestMethod = "PATCH"
+	IntegrationCallHTTPRequestMethodPOST    IntegrationCallHTTPRequestMethod = "POST"
+	IntegrationCallHTTPRequestMethodPUT     IntegrationCallHTTPRequestMethod = "PUT"
+)
+
 // Defines values for IssueReasonEnum.
 const (
 	IssueReasonEnumError  IssueReasonEnum = "error"
@@ -1255,6 +1266,9 @@ type CredentialDataOAuth2Code struct {
 	// Code Code is the authorization code which will be exchanged for an access token.
 	Code string `json:"code"`
 
+	// RedirectURL RedirectURL is the URL which the user will be redirected to after authorising the application.
+	RedirectURL *string `json:"redirectUrl,omitempty"`
+
 	// State State is the state value which is propagated through the OAuth2 flow.
 	State string `json:"state"`
 }
@@ -1655,6 +1669,9 @@ type InitialiseOAuth2ConnectionRequest struct {
 	// does not default to anything.
 	Prompt *string `json:"prompt,omitempty"`
 
+	// RedirectURL RedirectURL is the URL which the user will be redirected to after authorising the application.
+	RedirectURL *string `json:"redirectUrl,omitempty"`
+
 	// Scopes Scopes is a list of OAuth 2.0 scopes which the application is requesting access to.
 	//
 	// Unless `disableOfflineAccess` is set to true, the API will also include the standard
@@ -1667,6 +1684,39 @@ type InitialiseOAuth2ConnectionRequest struct {
 type InitialiseOAuth2ConnectionResponse struct {
 	// URL The URL to redirect the user to.
 	URL string `json:"url"`
+}
+
+// An HTTP request to send to a project's deployed environment.
+type IntegrationCallHTTPRequest struct {
+	// Body The request body as a base64 encoded string.
+	Body *[]byte `json:"body,omitempty"`
+
+	// Headers HTTP headers to include in the request.
+	Headers *map[string][]string `json:"headers,omitempty"`
+
+	// Method The HTTP method to use for the request.
+	Method IntegrationCallHTTPRequestMethod `json:"method"`
+
+	// Query Query parameters to include in the request.
+	Query *map[string][]string `json:"query,omitempty"`
+
+	// UrlPath The URL path to call on the integration.
+	UrlPath string `json:"urlPath"`
+}
+
+// The HTTP method to use for the request.
+type IntegrationCallHTTPRequestMethod string
+
+// The HTTP response returned from a project's deployed environment.
+type IntegrationCallHTTPResponse struct {
+	// Body The response body as a base64 encoded string.
+	Body []byte `json:"body"`
+
+	// Headers HTTP headers returned in the response.
+	Headers map[string][]string `json:"headers"`
+
+	// Status The HTTP status code of the response.
+	Status int `json:"status"`
 }
 
 // IntegrationFlow represents the flow of an integration.
@@ -2202,6 +2252,10 @@ type ProjectSettings struct {
 	// rather than in NATS. Defaults to false (NATS).
 	ChatStoredInDB *bool `json:"chatStoredInDB,omitempty"`
 
+	// DefaultEnvironment DefaultEnvironment marks one environment as the default in the project.
+	// This is just used to know which one to load in the UI
+	DefaultEnvironment *string `json:"defaultEnvironment,omitempty"`
+
 	// PlanningChatVersion Version tag for the planning chat feature
 	PlanningChatVersion *string `json:"planningChatVersion,omitempty"`
 
@@ -2286,8 +2340,9 @@ type ProjectsList struct {
 
 // ResourceRequirements defines model for ResourceRequirements.
 type ResourceRequirements struct {
-	Cpu    *string `json:"cpu,omitempty"`
-	Memory *string `json:"memory,omitempty"`
+	Cpu     *string `json:"cpu,omitempty"`
+	Memory  *string `json:"memory,omitempty"`
+	Storage *string `json:"storage,omitempty"`
 }
 
 // Resources defines model for Resources.
@@ -2739,6 +2794,11 @@ type DeployProjectParams struct {
 	ProjectEnv *ProjectEnv `form:"project_env,omitempty" json:"project_env,omitempty"`
 }
 
+// CallIntegrationParams defines parameters for CallIntegration.
+type CallIntegrationParams struct {
+	ProjectEnv *ProjectEnv `form:"project_env,omitempty" json:"project_env,omitempty"`
+}
+
 // ChangeEnvironmentExecutionPoolParams defines parameters for ChangeEnvironmentExecutionPool.
 type ChangeEnvironmentExecutionPoolParams struct {
 	ProjectEnv *ProjectEnv `form:"project_env,omitempty" json:"project_env,omitempty"`
@@ -2931,6 +2991,9 @@ type UpdateConnectionTemplateJSONRequestBody = UpdateConnectionTemplate
 
 // DeployProjectJSONRequestBody defines body for DeployProject for application/json ContentType.
 type DeployProjectJSONRequestBody = ProjectDeployPayload
+
+// CallIntegrationJSONRequestBody defines body for CallIntegration for application/json ContentType.
+type CallIntegrationJSONRequestBody = IntegrationCallHTTPRequest
 
 // CloneEnvironmentJSONRequestBody defines body for CloneEnvironment for application/json ContentType.
 type CloneEnvironmentJSONRequestBody = CloneEnvironmentRequest

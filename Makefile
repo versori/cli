@@ -35,7 +35,7 @@ e2e:
 cli: # build the Versori CLI tool
 	mkdir -p bin
 	go build -o bin/versori -ldflags="-X 'github.com/versori/cli/pkg/cmd.version=$$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)'" .
-	cp bin/versori $(or $(GOPATH),/usr/local)/bin/versori
+	cp bin/versori /usr/local/bin/versori
 
 .PHONY: versori-docs
 versori-docs:

@@ -14,10 +14,14 @@
 package connections
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/versori/cli/pkg/browser"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
@@ -27,10 +31,20 @@ import (
 )
 
 type credentialFields struct {
-	apiKey   string
+	// api key fields
+	apiKey string
+
+	// basic auth and oauth2 password
 	username string
 	password string
-	bypass   bool
+
+	// no auth
+	bypass bool
+
+	// oauth2 client
+	clientID     string
+	clientSecret string
+	tokenUrl     string
 }
 
 type create struct {
@@ -68,9 +82,12 @@ If a base URL is not provided, it will default to the system's base URL defined 
 
 	// Credential fields
 	flags.StringVar(&cr.fields.apiKey, "api-key", "", "API key for authentication")
-	flags.StringVar(&cr.fields.username, "username", "", "Username for HTTP Basic authentication")
-	flags.StringVar(&cr.fields.password, "password", "", "Password for HTTP Basic authentication")
+	flags.StringVar(&cr.fields.username, "username", "", "Username for HTTP Basic authentication or OAuth2 password grant type")
+	flags.StringVar(&cr.fields.password, "password", "", "Password for HTTP Basic authentication or OAuth2 password grant type")
 	flags.BoolVar(&cr.fields.bypass, "bypass", false, "Whether to bypass authentication (if supported by the connection template)")
+	flags.StringVar(&cr.fields.clientID, "client-id", "", "OAuth2 client id for use with an oauth2 client connection")
+	flags.StringVar(&cr.fields.clientSecret, "client-secret", "", "OAuth2 client secret for use with an oauth2 client connection")
+	flags.StringVar(&cr.fields.tokenUrl, "token-url", "", "OAuth2 token URL for use with an oauth2 client connection. Defaults to the token URL defined in the connection template.")
 
 	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("environment")
@@ -80,55 +97,231 @@ If a base URL is not provided, it will default to the system's base URL defined 
 	return cmd
 }
 
-// validateCredentialFields validates that only one of the following is set:
-// - api-key
-// - bypass
-// - both username AND password
-func (c *create) validateCredentialFields() error {
-	numSet := 0
+func (c *create) Run(cmd *cobra.Command, _ []string) {
+	ctx := cmd.Context()
+	projectId := c.projectId.GetFlagOrDie(".")
+	envId := c.getEnvironment(projectId)
 
-	if c.fields.apiKey != "" {
-		numSet++
-	}
-	if c.fields.bypass {
-		numSet++
-	}
-	if c.fields.username != "" || c.fields.password != "" {
-		// Both username and password must be set together
-		if (c.fields.username == "") || (c.fields.password == "") {
-			return fmt.Errorf("both username and password must be provided together")
-		}
-		numSet++
+	connectionTemplate := c.getConnectionAuthSchemeConfig(projectId, envId)
+	if len(connectionTemplate.AuthSchemeConfigs) == 0 {
+		utils.NewExitError().WithMessage("connection template has no auth scheme configs configured").Done()
 	}
 
-	if numSet == 0 {
-		return fmt.Errorf("must provide one of: --api-key, --bypass, or (--username AND --password)")
-	}
-	if numSet > 1 {
-		return fmt.Errorf("only one of the following can be set: --api-key, --bypass, or (--username AND --password)")
+	// this will cause the cli to exit if there are validation errors
+	credentialData := c.createCredentialData(ctx, connectionTemplate.ID.String(), connectionTemplate.AuthSchemeConfigs[0])
+
+	payload := v1.CreateConnectionJSONRequestBody{
+		Connection: v1.ConnectionCreate{
+			BaseURL: c.baseUrl,
+			Credentials: v1.ConnectionCredentialsCreate{
+				credentialData,
+			},
+			Name: c.connectionName,
+		},
+		EnvironmentSystemID: ulid.MustParse(c.connectionTemplateId),
+		ExternalId:          utils.StringOrNil(c.userExternalId),
 	}
 
-	return nil
+	resp := v1.Connection{}
+	err := c.configFactory.
+		NewRequest().
+		WithMethod(http.MethodPost).
+		WithPath("o/:organisation/connections").
+		Into(&resp).
+		JSONBody(payload).
+		Do()
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to create connection").WithReason(err).Done()
+	}
+
+	fmt.Printf("Connection created successfully with ID: %s\n", resp.ID.String())
 }
 
-func (c *create) Run(_ *cobra.Command, _ []string) {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		utils.NewExitError().WithMessage("failed to get current directory").WithReason(err).Done()
+// createCredentialData validates that the flags provided match the auth scheme config.
+// If flags are missing, this function will call os.Exit(1) printing the error message
+// It returns the credential data for the connection
+func (c *create) createCredentialData(ctx context.Context, systemId string, authSchemeConfig v1.AuthSchemeConfig) v1.ConnectionCredential {
+	credData := v1.CredentialData{}
+	var credType v1.CredentialType
+
+	switch authSchemeConfig.Type {
+	case v1.AuthSchemeTypeApiKey:
+		if c.fields.apiKey == "" {
+			utils.NewExitError().WithMessage("api-key is required for this connection template").Done()
+		}
+
+		credType = v1.CredentialTypeString
+		credData.String = &v1.CredentialDataString{
+			Value: c.fields.apiKey,
+		}
+
+	case v1.AuthSchemeTypeBasicAuth:
+		if c.fields.username == "" || c.fields.password == "" {
+			utils.NewExitError().WithMessage("username and password are required for this connection template").Done()
+		}
+
+		credType = v1.CredentialTypeBasicAuth
+		credData.BasicAuth = &v1.CredentialDataBasicAuth{
+			Password: c.fields.password,
+			Username: c.fields.username,
+		}
+
+	case v1.AuthSchemeTypeOauth2:
+		credData, credType = c.handleOAuth2(ctx, systemId, authSchemeConfig.Oauth2)
+
+	case v1.AuthSchemeTypeNone:
+		if !c.fields.bypass {
+			utils.NewExitError().WithMessage("bypass is required for this connection template").Done()
+		}
+
+		return v1.ConnectionCredential{
+			AuthSchemeConfig: &v1.AuthSchemeConfig{
+				None: &v1.AuthSchemeConfigNone{},
+				Type: v1.AuthSchemeTypeNone,
+			},
+			Credential: &v1.Credential{
+				OrganisationID: ulid.MustParse(c.configFactory.Context.OrganisationId),
+				Type:           credType,
+			},
+		}
+
+	default:
+		utils.NewExitError().WithMessage("unsupported auth scheme type").WithReason(fmt.Errorf("unsupported auth scheme type: %s", authSchemeConfig.Type)).Done()
 	}
 
-	projectId := c.projectId.GetFlagOrDie(currentDir)
+	return v1.ConnectionCredential{
+		AuthSchemeConfig: &authSchemeConfig,
+		Credential: &v1.Credential{
+			Data:           &credData,
+			OrganisationID: ulid.MustParse(c.configFactory.Context.OrganisationId),
+			Type:           credType,
+		},
+	}
+}
 
-	// Validate credential fields
-	if err := c.validateCredentialFields(); err != nil {
-		utils.NewExitError().WithMessage("invalid credential fields").WithReason(err).Done()
+func (c *create) handleOAuth2(ctx context.Context, systemId string, authSchemeConfig *v1.AuthSchemeConfigOAuth2) (v1.CredentialData, v1.CredentialType) {
+	credData := v1.CredentialData{}
+	var credType v1.CredentialType
+
+	switch authSchemeConfig.Grant.Type {
+	case v1.AuthSchemeConfigOAuth2GrantTypeAuthorizationCode:
+		credData, credType = c.handleOAuth2Code(ctx, systemId, authSchemeConfig)
+
+	case v1.AuthSchemeConfigOAuth2GrantTypeClientCredentials:
+		if c.fields.clientID == "" || c.fields.clientSecret == "" {
+			utils.NewExitError().WithMessage("client-id and client-secret are required for this connection template").Done()
+		}
+
+		credData.Oauth2Client = &v1.CredentialDataOAuth2Client{
+			ClientID:     c.fields.clientID,
+			ClientSecret: c.fields.clientSecret,
+			TokenURL:     utils.DefaultString(c.fields.tokenUrl, authSchemeConfig.TokenURL),
+		}
+
+		credType = v1.CredentialTypeOauth2Client
+
+	case v1.AuthSchemeConfigOAuth2GrantTypePassword:
+		if c.fields.username == "" || c.fields.password == "" {
+			utils.NewExitError().WithMessage("username and password are required for this connection template").Done()
+		}
+
+		credData.Oauth2Password = &v1.CredentialDataOAuth2Password{
+			Username: c.fields.username,
+			Password: c.fields.password,
+		}
+
+		credType = v1.CredentialTypeOauth2Password
+	default:
+		utils.NewExitError().WithMessage("unsupported auth scheme type configuration").WithReason(fmt.Errorf("unsupported oauth2 grant type: %s", authSchemeConfig.Grant.Type)).Done()
 	}
 
-	// first get the authscheme config from the API for the provided templateID
-	project := v1.Project{}
-	err = c.configFactory.
+	return credData, credType
+}
+
+func (c *create) handleOAuth2Code(ctx context.Context, systemId string, authSchemeConfig *v1.AuthSchemeConfigOAuth2) (v1.CredentialData, v1.CredentialType) {
+	if authSchemeConfig == nil {
+		utils.NewExitError().WithMessage("authSchemeConfig is nil").Done()
+
+		return v1.CredentialData{}, v1.CredentialTypeNone // unreachable because of .Done()
+	}
+
+	if authSchemeConfig.Grant.AuthorizationCode.ClientID == nil {
+		utils.NewExitError().WithMessage("client-id is required for this connection template").Done()
+	}
+
+	closeCh, queryParamCh, redirectUrl := newRedirectServer(ctx)
+	defer close(closeCh)
+
+	// initialize connection
+	initRequest := v1.InitialiseOAuth2ConnectionRequest{
+		AdditionalParams: authSchemeConfig.AdditionalAuthorizeParams,
+		RedirectURL:      utils.Ptr(redirectUrl),
+		AuthorizeURL:     authSchemeConfig.AuthorizeURL,
+		ClientID:         *authSchemeConfig.Grant.AuthorizationCode.ClientID,
+		Credential: struct {
+			ID             ulid.ULID `json:"id"`
+			OrganisationID ulid.ULID `json:"organisationId"`
+		}{
+			OrganisationID: ulid.MustParse(c.configFactory.Context.OrganisationId),
+			ID:             authSchemeConfig.Grant.AuthorizationCode.CredentialID,
+		},
+		DisableOfflineAccess: true,
+		Prompt:               utils.Ptr("consent"),
+		Scopes:               convertScopes(authSchemeConfig.Scopes),
+	}
+
+	resp := v1.InitialiseOAuth2ConnectionResponse{}
+	err := c.configFactory.
 		NewRequest().
-		WithMethod("GET").
+		WithMethod(http.MethodPost).
+		Into(&resp).
+		WithPath("o/:organisation/systems/" + systemId + "/oauth2/initialise").
+		JSONBody(initRequest).
+		Do()
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to initialize oauth2 connection").WithReason(err).Done()
+	}
+
+	err = browser.OpenURL(resp.URL)
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to open browser").WithReason(err).Done()
+	}
+
+	query := map[string][]string{}
+	select {
+	case query = <-queryParamCh:
+	case <-time.After(15 * time.Minute):
+		utils.NewExitError().WithMessage("timed out waiting for redirect server to receive request").Done()
+	case <-ctx.Done():
+		utils.NewExitError().WithMessage("cancelled waiting for redirect server to receive request").Done()
+	}
+
+	code := getValue("code", query)
+	state := getValue("state", query)
+
+	switch {
+	case code == "":
+		utils.NewExitError().WithMessage("code is required in the redirect url for oauth2 connections to work").Done()
+
+	case state == "":
+		utils.NewExitError().WithMessage("state is required in the redirect url for oauth2 connections to work").Done()
+	}
+
+	return v1.CredentialData{
+		Oauth2Code: &v1.CredentialDataOAuth2Code{
+			Code:             code,
+			State:            state,
+			AdditionalParams: authSchemeConfig.AdditionalTokenParams,
+			RedirectURL:      utils.Ptr(redirectUrl),
+		},
+	}, v1.CredentialTypeOauth2Code
+}
+
+func (c *create) getEnvironment(projectId string) string {
+	project := v1.Project{}
+	err := c.configFactory.
+		NewRequest().
+		WithMethod(http.MethodGet).
 		Into(&project).
 		WithPath("o/:organisation/projects/" + projectId).
 		Do()
@@ -149,13 +342,17 @@ func (c *create) Run(_ *cobra.Command, _ []string) {
 		utils.NewExitError().WithMessage("environment [" + c.envName + "] not found in project").Done()
 	}
 
+	return env.ID.String()
+}
+
+func (c *create) getConnectionAuthSchemeConfig(projectId, envId string) v1.ConnectionTemplate {
 	connTemplatesPage := v1.EnvironmentSystemPage{}
-	err = c.configFactory.
+	err := c.configFactory.
 		NewRequest().
-		WithMethod("GET").
+		WithMethod(http.MethodGet).
 		Into(&connTemplatesPage).
 		WithPath("o/:organisation/projects/"+projectId+"/connection-templates").
-		WithQueryParam("env_id", env.ID.String()).
+		WithQueryParam("env_id", envId).
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to get connection templates for environment").WithReason(err).Done()
@@ -174,87 +371,77 @@ func (c *create) Run(_ *cobra.Command, _ []string) {
 		utils.NewExitError().WithMessage("connection template not found in environment").Done()
 	}
 
-	payload := v1.CreateConnectionJSONRequestBody{
-		Connection: v1.ConnectionCreate{
-			BaseURL: c.baseUrl,
-			Credentials: v1.ConnectionCredentialsCreate{
-				c.createConnectionCredentials(connTemplate.AuthSchemeConfigs[0]),
-			},
-			Name: c.connectionName,
-		},
-		EnvironmentSystemID: ulid.MustParse(c.connectionTemplateId),
-		ExternalId:          utils.StringOrNil(c.userExternalId),
-	}
-
-	resp := v1.Connection{}
-	err = c.configFactory.
-		NewRequest().
-		WithMethod("POST").
-		WithPath("o/:organisation/connections").
-		Into(&resp).
-		JSONBody(payload).
-		Do()
-	if err != nil {
-		fmt.Println(err.Error())
-		utils.NewExitError().WithMessage("failed to create connection").WithReason(err).Done()
-	}
-
-	fmt.Printf("Connection created successfully with ID: %s\n", resp.ID.String())
+	return connTemplate
 }
 
-func (c *create) createConnectionCredentials(asc v1.AuthSchemeConfig) v1.ConnectionCredential {
-	credData := v1.CredentialData{}
-	var credType v1.CredentialType
-
-	// very simple right now, we just go through the struct fields and check.
-	// TODO: clean this up maybe do reflection stuff idk
-
-	switch {
-	case c.fields.bypass:
-		credType = v1.CredentialTypeNone
-
-		return v1.ConnectionCredential{
-			AuthSchemeConfig: &v1.AuthSchemeConfig{
-				None: &v1.AuthSchemeConfigNone{},
-				Type: v1.AuthSchemeTypeNone,
-			},
-			Credential: &v1.Credential{
-				OrganisationID: ulid.MustParse(c.configFactory.Context.OrganisationId),
-				Type:           credType,
-			},
-		}
-	case c.fields.apiKey != "":
-		credType = v1.CredentialTypeString
-
-		if asc.Type != v1.AuthSchemeTypeApiKey {
-			utils.NewExitError().WithMessage("provided API key credential fields, but the connection template does not support API key authentication").Done()
-		}
-
-		credData.String = &v1.CredentialDataString{
-			Value: c.fields.apiKey,
-		}
-	case c.fields.username != "" && c.fields.password != "":
-		credType = v1.CredentialTypeBasicAuth
-
-		if asc.Type != v1.AuthSchemeTypeApiKey {
-			utils.NewExitError().WithMessage("provided API key credential fields, but the connection template does not support API key authentication").Done()
-		}
-
-		credData.BasicAuth = &v1.CredentialDataBasicAuth{
-			Password: c.fields.password,
-			Username: c.fields.username,
-		}
-	default:
-		// hopefully validation should catch this before we get here, but just in case
-		utils.NewExitError().WithMessage("invalid credential fields").Done()
+func convertScopes(scopes []v1.OAuth2Scope) []string {
+	converted := make([]string, len(scopes))
+	for i, s := range scopes {
+		converted[i] = s.Name
 	}
 
-	return v1.ConnectionCredential{
-		AuthSchemeConfig: &asc,
-		Credential: &v1.Credential{
-			Data:           &credData,
-			OrganisationID: ulid.MustParse(c.configFactory.Context.OrganisationId),
-			Type:           credType,
-		},
+	return converted
+}
+
+// newRedirectServer starts a new HTTP server on a random port and returns a channel to close the server, a channel to receive the query parameters and the redirect URL.
+// It is the callers responsibility to close the close channel when the server is no longer needed.
+// The query channel will be closed after the first request is received.
+func newRedirectServer(ctx context.Context) (chan struct{}, chan map[string][]string, string) {
+	randomPort := 62168 // some oauth2 providers need the port to be fixed
+	queryParamCh := make(chan map[string][]string)
+	closeChannel := make(chan struct{})
+	redirectUrl := fmt.Sprintf("http://127.0.0.1:%d/oauth/callback", randomPort)
+
+	handler := http.NewServeMux()
+	handler.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
+		queryParamCh <- r.URL.Query()
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+
+		_, _ = w.Write([]byte(oauth2Screen))
+	})
+
+	s := http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", randomPort),
+		Handler: handler,
 	}
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			err := s.Shutdown(ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to shutdown redirect server: %v\n", err)
+			}
+		case <-closeChannel:
+			err := s.Shutdown(ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to shutdown redirect server: %v\n", err)
+			}
+		}
+
+		close(queryParamCh)
+	}()
+
+	go func() {
+		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(os.Stderr, "HTTP server ListenAndServe: %v\n", err)
+		}
+	}()
+
+	return closeChannel, queryParamCh, redirectUrl
+}
+
+func getValue(key string, m map[string][]string) string {
+	if m == nil {
+		return ""
+	}
+
+	arr := m[key]
+	if len(arr) == 0 {
+		return ""
+	}
+
+	return arr[0]
 }

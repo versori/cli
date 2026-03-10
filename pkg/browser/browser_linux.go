@@ -11,25 +11,22 @@
  * use of this software will be governed by the Apache License, Version 2.0.
  */
 
-package utils
+package browser
 
-func Ptr[T any](v T) *T {
-	return &v
-}
+import "os/exec"
 
-// StringOrNil returns a pointer to the string if it's not empty, otherwise it returns nil.
-func StringOrNil(s string) *string {
-	if s == "" {
-		return nil
+// OpenURL opens the given URL in the default browser.
+func OpenURL(url string) error {
+	cmdsToTry := []string{"xdg-open", "x-www-browser"}
+
+	for _, cmd := range cmdsToTry {
+		cmd, err := exec.LookPath(cmdsToTry[0])
+		if err != nil {
+			continue
+		}
+
+		return exec.Command(cmd, url).Start()
 	}
 
-	return &s
-}
-
-func DefaultString(v string, defaultValue string) string {
-	if v == "" {
-		return defaultValue
-	}
-
-	return v
+	return fmt.Errorf("You need to install one of the following to open a browser: %v", cmdsToTry)
 }
