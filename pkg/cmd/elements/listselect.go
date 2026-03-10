@@ -13,7 +13,12 @@
 
 package elements
 
-import "github.com/charmbracelet/huh"
+import (
+	"slices"
+	"strings"
+
+	"github.com/charmbracelet/huh"
+)
 
 type ListSelect struct {
 	title   string
@@ -56,6 +61,11 @@ func (ls *ListSelect) Select(value *string) error {
 		}
 		opts = append(opts, opt)
 	}
+
+	// Sort options by label for consistent ordering
+	slices.SortFunc(opts, func(a, b huh.Option[string]) int {
+		return strings.Compare(a.String(), b.String())
+	})
 
 	listselect.Options(opts...)
 
