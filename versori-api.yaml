@@ -224,6 +224,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /o/{organisation_id}/projects/{project_id}/environments/{environment_id}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/environment_id"
+    post:
+      operationId: DeleteEnvironment
+      summary: Delete Environment
+      description: |
+        DeleteEnvironment will unpublish and remove an environment from the project.
+      tags:
+        - projects
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /o/{organisation_id}/projects/{project_id}/environments/sync:
     parameters:
       - $ref: "#/components/parameters/organisation_id"
@@ -526,6 +552,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProjectEnvironment"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/environments/call:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/project_env"
+    post:
+      operationId: CallIntegration
+      summary: Call Integration
+      description: |
+        CallIntegration sends an HTTP request to a project's deployed environment and returns the response.
+        This allows triggering a project remotely via an HTTP call.
+      tags:
+        - projects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntegrationCallHTTPRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationCallHTTPResponse"
         default:
           description: Error
           content:
@@ -3704,6 +3763,11 @@ components:
             ChatStoredInDB is a flag that indicates whether chat messages are stored in the database
             rather than in NATS. Defaults to false (NATS).
           type: boolean
+        defaultEnvironment:
+          description: |
+            DefaultEnvironment marks one environment as the default in the project.
+            This is just used to know which one to load in the UI
+          type: string
 
     ProjectMetadata:
       description: ProjectMetadata hold metadata for the project
@@ -4725,6 +4789,12 @@ components:
           description: |
             State is the state value which is propagated through the OAuth2 flow.
           type: string
+        redirectUrl:
+          description: |
+            RedirectURL is the URL which the user will be redirected to after authorising the application.
+          type: string
+          format: uri
+          x-go-name: RedirectURL
         additionalParams:
           description: |
             AdditionalParams is a URL-encoded query string which can be used to pass additional
@@ -5375,6 +5445,12 @@ components:
           type: string
           format: uri
           x-go-name: AuthorizeURL
+        redirectUrl:
+          description: |
+            RedirectURL is the URL which the user will be redirected to after authorising the application.
+          type: string
+          format: uri
+          x-go-name: RedirectURL
         clientId:
           description: |
             ClientID is the OAuth 2.0 client ID which is used to identify the application to the
@@ -6407,6 +6483,8 @@ components:
           type: string
         memory:
           type: string
+        storage:
+          type: string
 
     ProjectTriggers:
       type: object
@@ -6470,6 +6548,69 @@ components:
         - message
         - body
         - headers
+
+    IntegrationCallHTTPRequest:
+      type: object
+      description: An HTTP request to send to a project's deployed environment.
+      properties:
+        urlPath:
+          type: string
+          description: The URL path to call on the integration.
+        method:
+          type: string
+          description: The HTTP method to use for the request.
+          enum:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - HEAD
+            - OPTIONS
+        headers:
+          type: object
+          description: HTTP headers to include in the request.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        query:
+          type: object
+          description: Query parameters to include in the request.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        body:
+          type: string
+          format: byte
+          description: The request body as a base64 encoded string.
+      required:
+        - urlPath
+        - method
+
+    IntegrationCallHTTPResponse:
+      type: object
+      description: The HTTP response returned from a project's deployed environment.
+      properties:
+        status:
+          type: integer
+          description: The HTTP status code of the response.
+        headers:
+          type: object
+          description: HTTP headers returned in the response.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        body:
+          type: string
+          format: byte
+          description: The response body as a base64 encoded string.
+      required:
+        - status
+        - headers
+        - body
 
     ProjectTrigger:
       type: object

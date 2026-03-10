@@ -45,7 +45,7 @@ type ProjectConnectionTemplateItem struct {
 
 // Register a concise printable view for table outputs
 func init() {
-	utils.RegisterResource(ProjectConnectionTemplateItem{}, []string{"Name", "Id", "ConnectionTemplateId", "Domain", "TemplateBaseUrl", "Dynamic"})
+	utils.RegisterResource(ProjectConnectionTemplateItem{}, []string{"Name", "Id", "ConnectionTemplateId", "TemplateBaseUrl", "Dynamic", "AuthSchemeConfigs.Type"})
 }
 
 type listSystems struct {

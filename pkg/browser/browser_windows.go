@@ -11,25 +11,11 @@
  * use of this software will be governed by the Apache License, Version 2.0.
  */
 
-package utils
+package browser
 
-func Ptr[T any](v T) *T {
-	return &v
-}
+import "golang.org/x/sys/windows"
 
-// StringOrNil returns a pointer to the string if it's not empty, otherwise it returns nil.
-func StringOrNil(s string) *string {
-	if s == "" {
-		return nil
-	}
-
-	return &s
-}
-
-func DefaultString(v string, defaultValue string) string {
-	if v == "" {
-		return defaultValue
-	}
-
-	return v
+// OpenURL opens the given URL in the default browser.
+func OpenURL(url string) error {
+	return windows.ShellExecute(0, nil, windows.StringToUTF16Ptr(url), nil, nil, windows.SW_SHOWNORMAL)
 }

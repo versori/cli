@@ -35,7 +35,14 @@ e2e:
 cli: # build the Versori CLI tool
 	mkdir -p bin
 	go build -o bin/versori -ldflags="-X 'github.com/versori/cli/pkg/cmd.version=$$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)'" .
-	cp bin/versori $(or $(GOPATH),/usr/local)/bin/versori
+	cp bin/versori /usr/local/bin/versori
+
+.PHONY: build-all
+build-all: # build binaries for all supported OSes (darwin, linux, windows)
+	mkdir -p bin
+	GOOS=darwin GOARCH=amd64 go build -o bin/versori-darwin-amd64 -ldflags="-X 'github.com/versori/cli/pkg/cmd.version=$$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)'" .
+	GOOS=linux GOARCH=amd64 go build -o bin/versori-linux-amd64 -ldflags="-X 'github.com/versori/cli/pkg/cmd.version=$$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)'" .
+	GOOS=windows GOARCH=amd64 go build -o bin/versori-windows-amd64.exe -ldflags="-X 'github.com/versori/cli/pkg/cmd.version=$$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)'" .
 
 .PHONY: versori-docs
 versori-docs:
