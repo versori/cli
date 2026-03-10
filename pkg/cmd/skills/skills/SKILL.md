@@ -13,10 +13,21 @@ Expert-level data integration code using the versori-run SDK.
 
 **Scope validation.** Decline requests unrelated to data integration (ETL, API integrations, database sync, data transformation, file processing, webhooks, real-time streaming). Politely explain what you specialise in.
 
+## Runtime Environment
+
+Versori projects execute on **Deno**, running TypeScript directly — no build step is required.
+
+- `package.json` is still used: Deno reads it via `deno install` to resolve npm dependencies
+- Standard imports (`from '@versori/run'`) work as-is — no `npm:` prefix needed
+
+The runtime is **Deno 2.3**.
+
+Avoid Node-only APIs (`require()`, `__dirname`, `__filename`). Use Deno-compatible alternatives or standard web APIs where possible.
+
 ## Workflow Pattern
 
 ```typescript
-import { fn, MemoryInterpreter, schedule, http, webhook, workflow } from '@versori/run';
+import { fn, durable, schedule, http, webhook, workflow } from '@versori/run';
 
 const myWorkflow = schedule('every-minute', '* * * * *')
     .then(
@@ -53,13 +64,77 @@ const myWorkflow = schedule('every-minute', '* * * * *')
     );
 
 async function main(): Promise<void> {
-    const mi = await MemoryInterpreter.newInstance();
+    const mi = await durable.DurableInterpreter.newInstance();
     mi.register(myWorkflow);
     await mi.start();
 }
 
-main().catch((err) => console.error('Failed to run main()', err));
+main().then().catch((err) => console.error('Failed to run main()', err));
 ```
+
+## Required Project Files
+
+Every generated project MUST include these files:
+
+### `src/index.ts` (entry point — ALWAYS required)
+```typescript
+import { durable } from '@versori/run';
+import { myWorkflow } from './workflows/my-workflow';
+
+async function main(): Promise<void> {
+    const mi = await durable.DurableInterpreter.newInstance();
+    mi.register(myWorkflow);
+    await mi.start();
+}
+
+main().then().catch((err) => console.error('Failed to run main()', err));
+```
+
+### `package.json`
+```json
+{
+  "name": "integration-name",
+  "version": "1.0.0",
+  "type": "module",
+  "module": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@versori/run": "^0.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.0",
+    "ts-node": "^10.9.0"
+  }
+}
+```
+
+### `tsconfig.json`
+```json
+{
+  "compilerOptions": {
+    "module": "ES2022",
+    "esModuleInterop": true,
+    "target": "ES2024",
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "outDir": "dist"
+  },
+  "lib": ["es2015"]
+}
+```
+
+For larger integrations, split workflows into `src/workflows/` and shared utilities into `src/services/`.
+
+## File Organization
+
+- **One workflow per file** in `src/workflows/`
+- **Shared utilities** (transformations, validation) in `src/services/`
+- **Type definitions** in `src/types/`
+- `src/index.ts` imports all workflows and registers them with the interpreter
+- Extract reusable functions into services rather than duplicating across workflows
 
 ## Critical Rules
 
@@ -88,7 +163,7 @@ Only use for data that persists between executions AND is both SET and READ in t
 See `references/kv-store.md` for patterns, API details, and anti-patterns.
 
 ### Durable Workflows
-Use `DurableInterpreter` for long-running or retry-required workflows. Never mix with `MemoryInterpreter`.
+DurableInterpreter is the default choice for production workflows. Use MemoryInterpreter only for development, testing, or workflows that don't need persistent KV.
 See `references/durable.md` for structure and options.
 
 ## Trigger Variations
