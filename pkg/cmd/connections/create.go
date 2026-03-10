@@ -181,7 +181,7 @@ func (c *create) createCredentialData(ctx context.Context, systemId string, auth
 			},
 			Credential: &v1.Credential{
 				OrganisationID: ulid.MustParse(c.configFactory.Context.OrganisationId),
-				Type:           credType,
+				Type:           v1.CredentialTypeNone,
 			},
 		}
 
