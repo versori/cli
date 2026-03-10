@@ -147,6 +147,7 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 
 ### Connection Names
 - After research, review the System & Authentication section for any systems that need user-specific configuration (e.g., shop domain, subdomain, instance URL). Ask the user for these values before proceeding. Then run `versori projects systems bootstrap --file <path> --project <id> --system-overrides '<json>'` (passing confirmed user-specific values via the overrides flag) to create systems, and run `versori projects systems list --project <id> --environment <env>` to verify what was created
+- **Before creating a connection**, run `versori connection list --project <id> --environment <env>` to see existing connection names. Connection names must be unique — do not reuse a name that already exists.
 - After verifying systems, create connections for each system using `versori connections create --project <id> --environment <env> --name <system-name> --template-id <template-id> --bypass` (use `--bypass` while connections are in active development)
 - **Always** run `versori projects systems list` before generating workflow code if a project ID is known
 - Use **exact** system names from the returned list — case-sensitive, no reformatting
