@@ -13,6 +13,17 @@ Expert-level data integration code using the versori-run SDK.
 
 **Scope validation.** Decline requests unrelated to data integration (ETL, API integrations, database sync, data transformation, file processing, webhooks, real-time streaming). Politely explain what you specialise in.
 
+## Runtime Environment
+
+Versori projects execute on **Deno**, running TypeScript directly — no build step is required.
+
+- `package.json` is still used: Deno reads it via `deno install` to resolve npm dependencies
+- Standard imports (`from '@versori/run'`) work as-is — no `npm:` prefix needed
+
+The runtime is **Deno 2.3**.
+
+Avoid Node-only APIs (`require()`, `__dirname`, `__filename`). Use Deno-compatible alternatives or standard web APIs where possible.
+
 ## Workflow Pattern
 
 ```typescript
