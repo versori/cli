@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: Generate
-        run: go build .
+      - name: Build
+        run: make build-all
 
   test:
     runs-on: ubuntu-latest
