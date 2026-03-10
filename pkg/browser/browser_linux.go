@@ -22,7 +22,7 @@ import (
 func OpenURL(url string) error {
 	cmdsToTry := []string{"xdg-open", "x-www-browser"}
 
-	for i, _ := range cmdsToTry {
+	for i := range cmdsToTry {
 		cmd, err := exec.LookPath(cmdsToTry[i])
 		if err != nil {
 			continue
@@ -31,5 +31,5 @@ func OpenURL(url string) error {
 		return exec.Command(cmd, url).Start()
 	}
 
-	return fmt.Errorf("You need to install one of the following to open a browser: %v", cmdsToTry)
+	return fmt.Errorf("you need to install one of the following to open a browser: %v", cmdsToTry)
 }
