@@ -13,14 +13,17 @@
 
 package browser
 
-import "os/exec"
+import (
+	"fmt"
+	"os/exec"
+)
 
 // OpenURL opens the given URL in the default browser.
 func OpenURL(url string) error {
 	cmdsToTry := []string{"xdg-open", "x-www-browser"}
 
-	for _, cmd := range cmdsToTry {
-		cmd, err := exec.LookPath(cmdsToTry[0])
+	for i, _ := range cmdsToTry {
+		cmd, err := exec.LookPath(cmdsToTry[i])
 		if err != nil {
 			continue
 		}
