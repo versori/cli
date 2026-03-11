@@ -114,7 +114,9 @@ func (d *download) downloadLatest() {
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to download latest skills").WithReason(err).Done()
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		utils.NewExitError().WithMessage("failed to download latest skills: unexpected status code from github: " + resp.Status).Done()
@@ -145,7 +147,7 @@ func (d *download) downloadLatest() {
 		target := filepath.Join(d.directory, skillsDirectory, relPath)
 
 		if file.FileInfo().IsDir() {
-			os.MkdirAll(target, 0755)
+			_ = os.MkdirAll(target, 0755)
 			continue
 		}
 
@@ -160,13 +162,13 @@ func (d *download) downloadLatest() {
 
 		rc, err := file.Open()
 		if err != nil {
-			outFile.Close()
+			_ = outFile.Close()
 			utils.NewExitError().WithMessage("failed to open skill file from zip").WithReason(err).Done()
 		}
 
 		_, err = io.Copy(outFile, rc)
-		rc.Close()
-		outFile.Close()
+		_ = rc.Close()
+		_ = outFile.Close()
 
 		if err != nil {
 			utils.NewExitError().WithMessage("failed to write skill file").WithReason(err).Done()
