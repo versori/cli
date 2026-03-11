@@ -111,9 +111,37 @@ Example confirmation: _"I've prepared the deployment command. Would you like me 
 
 Consider using `--dry-run` first when intent is ambiguous.
 
+## The `.versori` File
+
+When you run `versori project sync`, the CLI creates a `.versori` file in the synced directory. This file contains:
+
+- `project_id` — the project's ULID
+- `context` — the CLI context that was active when the project was synced
+
+When a `.versori` file is present in the current directory, the `--project` flag is **optional** for most commands — the CLI reads the project ID automatically. This applies to: `deploy`, `save`, `sync`, `systems list`, `systems bootstrap`, `assets list`, `assets upload`, `assets download`, `logs`, `proxy`, and `versions list`.
+
+**Important:** The `context` stored in `.versori` must match the current CLI context. If you switch contexts, the `.versori` file from a different context will not work — you need to re-sync or switch back.
+
 ## Workflow
 
-**New project:**
+**Step 1 — Determine the active project:**
+```bash
+# Check if a .versori file exists in the current directory.
+# If it does, the project ID is already known — skip to step 2.
+
+# If no .versori file, ask the user: existing project or new?
+
+# Existing project:
+versori projects list
+# → 01KH6HD9QNAT57MGEPYG4CY9J5  shopify-sync
+# Let the user pick one, then sync it down (see "Existing project" workflow below)
+
+# New project:
+versori projects create --name "my-integration"
+# → Project ID: 01KH6HD9QNAT57MGEPYG4CY9J5
+```
+
+**New project (continued):**
 ```bash
 # 1. (Optional) Check CLI availability
 versori status
@@ -121,11 +149,7 @@ versori status
 # 2. Select context if needed
 versori context select demo
 
-# 3. Create project → returns projectId
-versori projects create --name "my-integration"
-# → Project ID: 01KH6HD9QNAT57MGEPYG4CY9J5
-
-# 4. After research phase produces versori-research/research.md,
+# 3. After research phase produces versori-research/research.md,
 #    review System & Authentication for user-specific config (shop domains, subdomains, etc.)
 #    Ask the user for any required values before bootstrapping.
 #    Then bootstrap systems from the research document (confirm with user first)
@@ -133,11 +157,11 @@ versori projects create --name "my-integration"
 versori projects systems bootstrap --file versori-research/research.md --project 01KH6HD9QNAT57MGEPYG4CY9J5 \
   --system-overrides '{"Shopify": {"base_url": "https://my-store.myshopify.com/admin/api/2024-01"}}'
 
-# 5. List systems to verify what was bootstrapped (note the template-id for each)
+# 4. List systems to verify what was bootstrapped (note the template-id for each)
 versori projects systems list --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment production
 # → shopify (template-id: abc123), postgres (template-id: def456)
 
-# 5.5. Upload the research document as a project asset
+# 5. Upload the research document as a project asset
 versori projects assets upload --file versori-research/research.md --project 01KH6HD9QNAT57MGEPYG4CY9J5
 
 # 6. Create connections for each system (use --bypass while connections are in active development)

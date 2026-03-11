@@ -192,6 +192,17 @@ See `references/cli-usage.md` for all commands, options, deployment safety guide
 
 **Always dry-run before syncing** — `sync` deletes local files not present in the platform. Show the user the diff and confirm before running for real.
 
+## Project Selection
+
+Before writing any code or running CLI commands that require a project ID, determine the active project:
+
+1. **Check for `.versori` file** — if a `.versori` file exists in the current directory, the user is already inside a synced project. Read the `project_id` from it and use that — no need to ask about project selection.
+2. **No `.versori` file** — ask the user whether they want to use an existing project or create a new one:
+   - **Existing project**: run `versori projects list` to show available projects, let the user pick one, then continue (sync it down if needed).
+   - **New project**: run `versori projects create --name <name>` to create a fresh project and use the returned ID.
+
+When a `.versori` file is present, most CLI commands (`deploy`, `save`, `sync`, `systems`, `assets`, etc.) automatically read the project ID from it, so the `--project` flag can be omitted.
+
 ## Context the User May Provide
 
 - API documentation for systems being integrated
