@@ -17,6 +17,7 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
+	"github.com/versori/cli/pkg/cmd/flags"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
@@ -26,7 +27,7 @@ import (
 // create implements `versori projects environments create`.
 type create struct {
 	configFactory           *config.ConfigFactory
-	projectId               string
+	projectId               flags.ProjectId
 	oldEnvName              string
 	newEnvName              string
 	executionPool           string
@@ -60,7 +61,7 @@ You can optionally clone systems and copy static user variables from the source 
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&cr.projectId, "project", "", "The ID of the project")
+	cr.projectId.SetFlag(flags)
 	flags.StringVar(&cr.oldEnvName, "old-env", "", "The name of the source environment to clone from")
 	flags.StringVar(&cr.newEnvName, "new-env", "", "The name of the new environment to create")
 	flags.StringVar(&cr.executionPool, "execution-pool", "", "Optional override execution pool for the new environment (defaults to source environment's execution pool)")
@@ -75,6 +76,8 @@ You can optionally clone systems and copy static user variables from the source 
 }
 
 func (c *create) Run(cmd *cobra.Command, args []string) {
+	projectId := c.projectId.GetFlagOrDie(".")
+
 	payload := v1.CloneEnvironmentRequest{
 		OldEnvName:              c.oldEnvName,
 		NewEnvName:              c.newEnvName,
@@ -87,7 +90,7 @@ func (c *create) Run(cmd *cobra.Command, args []string) {
 	err := c.configFactory.
 		NewRequest().
 		WithMethod(http.MethodPost).
-		WithPath("o/:organisation/projects/" + c.projectId + "/environments/clone").
+		WithPath("o/:organisation/projects/" + projectId + "/environments/clone").
 		Into(&resp).
 		JSONBody(payload).
 		Do()
