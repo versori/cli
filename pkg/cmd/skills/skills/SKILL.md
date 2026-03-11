@@ -77,6 +77,7 @@ main().then().catch((err) => console.error('Failed to run main()', err));
 Every generated project MUST include these files:
 
 ### `src/index.ts` (entry point — ALWAYS required)
+
 ```typescript
 import { durable } from '@versori/run';
 import { myWorkflow } from './workflows/my-workflow';
@@ -91,6 +92,7 @@ main().then().catch((err) => console.error('Failed to run main()', err));
 ```
 
 ### `package.json`
+
 ```json
 {
   "name": "integration-name",
@@ -112,6 +114,7 @@ main().then().catch((err) => console.error('Failed to run main()', err));
 ```
 
 ### `tsconfig.json`
+
 ```json
 {
   "compilerOptions": {
@@ -139,6 +142,7 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 ## Critical Rules
 
 ### HTTP Requests
+
 - **Always** use `http()` tasks for API requests, never `fn()`
 - **Always** use `ctx.fetch` (destructured as `fetch`) — never global `fetch` or NPM packages
 - **Always** use the PATH only in fetch URLs, never full URLs
@@ -146,6 +150,7 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
   - ❌ `fetch('https://api.example.com/api/v1/resource')`
 
 ### Connection Names
+
 - After research, review the System & Authentication section for any systems that need user-specific configuration (e.g., shop domain, subdomain, instance URL). Ask the user for these values before proceeding. Then run `versori projects systems bootstrap --file <path> --project <id> --system-overrides '<json>'` (passing confirmed user-specific values via the overrides flag) to create systems, and run `versori projects systems list --project <id> --environment <env>` to verify what was created
 - **Before creating a connection**, run `versori connection list` to see existing connection names. Connection names must be unique — do not reuse a name that already exists.
 - After verifying systems, create connections for each system using `versori connections create --project <id> --environment <env> --name <system-name> --template-id <template-id> --bypass` (use `--bypass` while connections are in active development)
@@ -156,14 +161,17 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 - If a required system is **still missing after bootstrap**, stop and tell the user which systems are missing before writing any code. Ask for the name of their org, then give them the direct link `https://ai.versori.com/integrations/<project-id>?org=<org>` to add the missing systems. Proceed once they confirm.
 
 ### Task Types
+
 - `http()` — API requests (requires a `connection`)
 - `fn()` — data processing, transformation, business logic only
 
 ### KV Store
+
 Only use for data that persists between executions AND is both SET and READ in the workflow.
 See `references/kv-store.md` for patterns, API details, and anti-patterns.
 
 ### Durable Workflows
+
 DurableInterpreter is the default choice for production workflows. Use MemoryInterpreter only for development, testing, or workflows that don't need persistent KV.
 See `references/durable.md` for structure and options.
 
