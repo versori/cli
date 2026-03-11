@@ -24,12 +24,13 @@ import (
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
 	"github.com/versori/cli/pkg/cmd/elements"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
 type Create struct {
 	configFactory *config.ConfigFactory
-	projectId     string
+	projectId     flags.ProjectId
 	dryRun        bool
 	name          string
 	description   string
@@ -47,7 +48,7 @@ func NewCreate(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&p.projectId, "project", "", "ID of the project to push the version to.")
+	p.projectId.SetFlag(flags)
 	flags.StringVarP(&p.name, "name", "n", "", "Name of the new version.")
 	flags.StringVar(&p.description, "description", "", "Description of the new version.")
 	flags.BoolVar(&p.dryRun, "dry-run", false, "Print files that would be uploaded without actually pushing.")
@@ -57,8 +58,9 @@ func NewCreate(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (p *Create) Run(_ *cobra.Command, _ []string) {
-	if p.projectId == "" {
-		selectProject(p.configFactory, &p.projectId)
+	projectId := p.projectId.GetProjectIDFromDir(".")
+	if projectId == "" {
+		selectProject(p.configFactory, &projectId)
 	}
 
 	if p.name == "" {
@@ -92,7 +94,7 @@ func (p *Create) Run(_ *cobra.Command, _ []string) {
 	}
 
 	if p.dryRun {
-		fmt.Printf("New version %s for project %s would be created with files:\n", p.name, p.projectId)
+		fmt.Printf("New version %s for project %s would be created with files:\n", p.name, projectId)
 		for _, file := range files {
 			fmt.Println("  " + file.Filename)
 		}
@@ -106,7 +108,7 @@ func (p *Create) Run(_ *cobra.Command, _ []string) {
 		Files:       files,
 	}
 
-	requestPath := "o/:organisation/projects/" + p.projectId + "/versions"
+	requestPath := "o/:organisation/projects/" + projectId + "/versions"
 
 	resp := v1.ProjectVersion{}
 	err = p.configFactory.

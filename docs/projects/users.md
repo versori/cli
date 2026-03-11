@@ -28,7 +28,8 @@ versori projects users details --project <project-id> --environment <environment
 * `--environment`: The environment name within the project
 * `--external-id`: The external ID of the user
 * `-h`, `--help`: help for details
-* `--project`: The project ID to list users for
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 
 
 
@@ -47,7 +48,8 @@ versori projects users list --project <project-id> --environment <environment-na
 **Flags:**
 * `--environment`: The environment name within the project
 * `-h`, `--help`: help for list
-* `--project`: The project ID to list users for
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 
 
 

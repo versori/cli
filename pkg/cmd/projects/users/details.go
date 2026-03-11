@@ -21,6 +21,7 @@ import (
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -37,7 +38,7 @@ type bigActivation struct {
 
 type detailsActivation struct {
 	configFactory   *config.ConfigFactory
-	projectId       string
+	projectId       flags.ProjectId
 	environmentName string
 	user            string
 }
@@ -52,11 +53,10 @@ func NewDetailsActivation(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&l.projectId, "project", "", "The project ID to list users for")
+	l.projectId.SetFlag(flags)
 	flags.StringVar(&l.environmentName, "environment", "", "The environment name within the project")
 	flags.StringVar(&l.user, "external-id", "", "The external ID of the user")
 
-	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("environment")
 	_ = cmd.MarkFlagRequired("external-id")
 
@@ -64,13 +64,15 @@ func NewDetailsActivation(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (l *detailsActivation) Run(cmd *cobra.Command, args []string) {
+	projectId := l.projectId.GetFlagOrDie(".")
+
 	// Fetch project to resolve environment ID from name
 	project := v1.Project{}
 	err := l.configFactory.
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&project).
-		WithPath("o/:organisation/projects/" + l.projectId).
+		WithPath("o/:organisation/projects/" + projectId).
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to get project").WithReason(err).Done()

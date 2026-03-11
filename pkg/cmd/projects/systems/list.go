@@ -20,6 +20,7 @@ import (
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -50,7 +51,7 @@ func init() {
 
 type listSystems struct {
 	configFactory   *config.ConfigFactory
-	projectId       string
+	projectId       flags.ProjectId
 	environmentName string
 }
 
@@ -64,23 +65,24 @@ func NewSystemsList(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&l.projectId, "project", "", "The project ID to list systems for")
+	l.projectId.SetFlag(flags)
 	flags.StringVar(&l.environmentName, "environment", "", "The environment name within the project")
 
-	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("environment")
 
 	return cmd
 }
 
 func (l *listSystems) Run(cmd *cobra.Command, args []string) {
+	projectId := l.projectId.GetFlagOrDie(".")
+
 	// Fetch project to resolve environment ID from name
 	project := v1.Project{}
 	err := l.configFactory.
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&project).
-		WithPath("o/:organisation/projects/" + l.projectId).
+		WithPath("o/:organisation/projects/" + projectId).
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to get project").WithReason(err).Done()
@@ -104,7 +106,7 @@ func (l *listSystems) Run(cmd *cobra.Command, args []string) {
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&resp).
-		WithPath("o/:organisation/projects/"+l.projectId+"/connection-templates").
+		WithPath("o/:organisation/projects/"+projectId+"/connection-templates").
 		WithQueryParam("env_id", envId).
 		Do()
 	if err != nil {

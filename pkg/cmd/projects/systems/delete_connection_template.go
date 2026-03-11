@@ -18,6 +18,7 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
+	"github.com/versori/cli/pkg/cmd/flags"
 
 	"github.com/versori/cli/pkg/cmd/config"
 	"github.com/versori/cli/pkg/utils"
@@ -25,7 +26,7 @@ import (
 
 type deleteConnectionTemplate struct {
 	configFactory *config.ConfigFactory
-	projectId     string
+	projectId     flags.ProjectId
 	templateId    string
 }
 
@@ -39,7 +40,7 @@ func NewDeleteConnectionTemplate(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&d.projectId, "project", "", "The project ID containing the connection template")
+	d.projectId.SetFlag(flags)
 	flags.StringVar(&d.templateId, "template", "", "The connection template ID to delete")
 
 	_ = cmd.MarkFlagRequired("project")
@@ -49,12 +50,12 @@ func NewDeleteConnectionTemplate(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (d *deleteConnectionTemplate) Run(cmd *cobra.Command, args []string) {
-	d.configFactory.LoadConfigAndContext()
+	projectId := d.projectId.GetFlagOrDie(".")
 
 	err := d.configFactory.
 		NewRequest().
 		WithMethod(http.MethodDelete).
-		WithPath("o/:organisation/projects/" + d.projectId + "/connection-templates/" + d.templateId).
+		WithPath("o/:organisation/projects/" + projectId + "/connection-templates/" + d.templateId).
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to delete connection template").WithReason(err).Done()
@@ -62,4 +63,3 @@ func (d *deleteConnectionTemplate) Run(cmd *cobra.Command, args []string) {
 
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "deleted")
 }
-

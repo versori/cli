@@ -114,7 +114,8 @@ versori projects edit --project <project-id> --environment <environment-name> [f
 * `-h`, `--help`: help for edit
 * `--max-replicas`: Maximum number of replicas. Setting this option enables autoscaling on the project
 
-* `--project`: The project ID
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 * `--replicas`: Number of replicas
 * `--resource.cpu.limits`: CPU limits (e.g., 500m)
 * `--resource.cpu.requests`: CPU requests (e.g., 100m)
