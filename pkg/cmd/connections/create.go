@@ -144,6 +144,22 @@ func (c *create) createCredentialData(ctx context.Context, systemId string, auth
 	credData := v1.CredentialData{}
 	var credType v1.CredentialType
 
+	// we need to handle bypass as a special case to make it easier to just ignore all auth for testing purposes
+	// this way passing --bypass will create a bypass connection that allows us to deploy the project
+	// users will always be able to connect later on
+	if c.fields.bypass {
+		return v1.ConnectionCredential{
+			AuthSchemeConfig: &v1.AuthSchemeConfig{
+				None: &v1.AuthSchemeConfigNone{},
+				Type: v1.AuthSchemeTypeNone,
+			},
+			Credential: &v1.Credential{
+				OrganisationID: ulid.MustParse(c.configFactory.Context.OrganisationId),
+				Type:           v1.CredentialTypeNone,
+			},
+		}
+	}
+
 	switch authSchemeConfig.Type {
 	case v1.AuthSchemeTypeApiKey:
 		if c.fields.apiKey == "" {
