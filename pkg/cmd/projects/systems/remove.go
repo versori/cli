@@ -20,12 +20,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
 type removeSystem struct {
 	configFactory *config.ConfigFactory
-	projectId     string
+	projectId     flags.ProjectId
 	templateId    string
 }
 
@@ -39,21 +40,22 @@ func NewSystemsRemove(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&r.projectId, "project", "", "The project ID from which to remove the system")
+	r.projectId.SetFlag(flags)
 	flags.StringVar(&r.templateId, "template", "", "The connection template ID to remove")
 
-	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("template")
 
 	return cmd
 }
 
 func (r *removeSystem) Run(cmd *cobra.Command, args []string) {
+	projectId := r.projectId.GetFlagOrDie(".")
+
 	// Perform DELETE request
 	err := r.configFactory.
 		NewRequest().
 		WithMethod(http.MethodDelete).
-		WithPath("o/:organisation/projects/" + r.projectId + "/connection-templates/" + r.templateId).
+		WithPath("o/:organisation/projects/" + projectId + "/connection-templates/" + r.templateId).
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to remove system from project").WithReason(err).Done()

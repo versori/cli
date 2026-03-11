@@ -10,17 +10,23 @@ It allows you to manage your skills.
 
 | Subcommand | Description |
 |---|---|
-| `download` | Download the skills |
+| `download` | Download AI agent skills |
 
 ---
 
 ### `versori skills download`
 
 
+Download the AI agent skills to a local directory.
 
+By default, this command extracts the skills that are shipped with the current CLI version,
+requiring no network connection.
+
+If the --latest flag is provided, it will attempt to download the latest version of the
+skills directly from the main branch of the GitHub repository.
 
 ```sh
-versori skills download --directory <directory> [flags]
+versori skills download [flags]
 ```
 
 
@@ -28,6 +34,7 @@ versori skills download --directory <directory> [flags]
 * `-d`, `--directory`: Directory to save the skills into. It will append the skill name to the directory.
 
 * `-h`, `--help`: help for download
+* `--latest`: Download the latest version of the skills
 
 
 

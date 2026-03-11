@@ -20,12 +20,13 @@ import (
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
 type updateConnectionTemplate struct {
 	configFactory       *config.ConfigFactory
-	projectId           string
+	projectId           flags.ProjectId
 	templateId          string
 	name                string
 	dynamic             bool
@@ -42,14 +43,13 @@ func NewUpdateConnectionTemplate(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&u.projectId, "project", "", "The project ID containing the connection template")
+	u.projectId.SetFlag(flags)
 	flags.StringVar(&u.templateId, "template", "", "The connection template ID to update")
 
 	flags.StringVar(&u.name, "name", "", "New name for the connection template")
 	flags.BoolVar(&u.dynamic, "dynamic", false, "Whether the connection template is dynamic")
 	flags.StringVar(&u.authSchemeConfigIds, "auth-scheme-config-id", "", "Auth scheme config ID to associate with the connection template")
 
-	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("template")
 
 	return cmd
@@ -57,6 +57,8 @@ func NewUpdateConnectionTemplate(c *config.ConfigFactory) *cobra.Command {
 
 func (u *updateConnectionTemplate) Run(cmd *cobra.Command, args []string) {
 	u.configFactory.LoadConfigAndContext()
+
+	projectId := u.projectId.GetFlagOrDie(".")
 
 	payload := v1.UpdateConnectionTemplate{}
 	updatesSet := false
@@ -83,7 +85,7 @@ func (u *updateConnectionTemplate) Run(cmd *cobra.Command, args []string) {
 	err := u.configFactory.
 		NewRequest().
 		WithMethod(http.MethodPut).
-		WithPath("o/:organisation/projects/" + u.projectId + "/connection-templates/" + u.templateId).
+		WithPath("o/:organisation/projects/" + projectId + "/connection-templates/" + u.templateId).
 		JSONBody(payload).
 		Do()
 	if err != nil {

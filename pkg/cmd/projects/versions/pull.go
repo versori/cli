@@ -24,12 +24,13 @@ import (
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
 type Pull struct {
 	configFactory *config.ConfigFactory
-	projectId     string
+	projectId     flags.ProjectId
 	directory     string
 	dryRun        bool
 	version       string
@@ -45,7 +46,7 @@ func NewPull(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&p.projectId, "project", "", "ID of the project to push the version to.")
+	p.projectId.SetFlag(flags)
 	flags.StringVar(&p.version, "version", "", "ID of the version. If not given, you will be prompted to select one.")
 	flags.BoolVar(&p.dryRun, "dry-run", false, "Print files that would be uploaded without actually pushing.")
 	flags.StringVarP(&p.directory, "directory", "d", ".", "Directory containing the versions to be uploaded")
@@ -56,12 +57,13 @@ func NewPull(c *config.ConfigFactory) *cobra.Command {
 func (p *Pull) Run(_ *cobra.Command, _ []string) {
 	var err error
 
-	if p.projectId == "" {
-		selectProject(p.configFactory, &p.projectId)
+	projectId := p.projectId.GetProjectIDFromDir(".")
+	if projectId == "" {
+		selectProject(p.configFactory, &projectId)
 	}
 
 	if p.version == "" {
-		selectVersion(p.configFactory, p.projectId, &p.version)
+		selectVersion(p.configFactory, projectId, &p.version)
 	}
 
 	var files v1.Files
@@ -69,7 +71,7 @@ func (p *Pull) Run(_ *cobra.Command, _ []string) {
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&files).
-		WithPath("o/:organisation/projects/" + p.projectId + "/versions/" + p.version + "/files").
+		WithPath("o/:organisation/projects/" + projectId + "/versions/" + p.version + "/files").
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to get version files").WithReason(err).Done()

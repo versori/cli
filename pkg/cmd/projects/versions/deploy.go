@@ -19,12 +19,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
 type Deploy struct {
 	configFactory *config.ConfigFactory
-	projectId     string
+	projectId     flags.ProjectId
 	environment   string
 	versionId     string
 }
@@ -40,19 +41,19 @@ func NewDeploy(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&p.projectId, "project", "", "The ID of the project to deploy the version to.")
+	p.projectId.SetFlag(flags)
 	flags.StringVar(&p.environment, "environment", "", "The name of the environment to deploy to.")
 	flags.StringVar(&p.versionId, "version-id", "", "The ID of the version to deploy.")
 
 	_ = cmd.MarkFlagRequired("version-id")
 	_ = cmd.MarkFlagRequired("environment")
-	_ = cmd.MarkFlagRequired("project")
 
 	return cmd
 }
 
 func (p *Deploy) Run(_ *cobra.Command, _ []string) {
-	requestPath := "o/:organisation/projects/" + p.projectId + "/versions/" + p.versionId + "/deploy"
+	projectId := p.projectId.GetFlagOrDie(".")
+	requestPath := "o/:organisation/projects/" + projectId + "/versions/" + p.versionId + "/deploy"
 
 	err := p.configFactory.
 		NewRequest().
