@@ -70,6 +70,28 @@ func TestCreateCredentialData(t *testing.T) {
 			},
 		},
 		{
+			name: "bypass auth type",
+			fields: credentialFields{
+				bypass: true,
+				apiKey: "test-api-key-123",
+			},
+			authSchemeConfig: v1.AuthSchemeConfig{
+				Type: v1.AuthSchemeTypeApiKey,
+			},
+			wantCredType: v1.CredentialTypeString,
+			validateResult: func(t *testing.T, result v1.ConnectionCredential) {
+				if result.Credential == nil {
+					t.Fatal("credential is nil")
+				}
+				if result.Credential.Type != v1.CredentialTypeNone {
+					t.Errorf("got credential type %v, want %v", result.Credential.Type, v1.CredentialTypeNone)
+				}
+				if result.AuthSchemeConfig.Type != v1.AuthSchemeTypeNone {
+					t.Errorf("got auth scheme type %v, want %v", result.AuthSchemeConfig.Type, v1.AuthSchemeTypeNone)
+				}
+			},
+		},
+		{
 			name: "basic auth authentication",
 			fields: credentialFields{
 				username: "testuser",
