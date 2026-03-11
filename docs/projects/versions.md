@@ -32,7 +32,8 @@ versori projects versions create [--project <project-id>] [--directory <source_d
 * `--dry-run`: Print files that would be uploaded without actually pushing.
 * `-h`, `--help`: help for create
 * `-n`, `--name`: Name of the new version.
-* `--project`: ID of the project to push the version to.
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 
 
 
@@ -51,7 +52,8 @@ versori projects versions deploy --project <project-id> --version <version-id> -
 **Flags:**
 * `--environment`: The name of the environment to deploy to.
 * `-h`, `--help`: help for deploy
-* `--project`: The ID of the project to deploy the version to.
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 * `--version-id`: The ID of the version to deploy.
 
 
@@ -71,7 +73,8 @@ versori projects versions list [flags]
 **Flags:**
 * `-h`, `--help`: help for list
 * `--limit`: How many versions to list
-* `--project`: The ID of the project to list versions for.
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 
 
 
@@ -91,7 +94,8 @@ versori projects versions pull [--directory <target-directory>] [--project <proj
 * `-d`, `--directory`: Directory containing the versions to be uploaded
 * `--dry-run`: Print files that would be uploaded without actually pushing.
 * `-h`, `--help`: help for pull
-* `--project`: ID of the project to push the version to.
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 * `--version`: ID of the version. If not given, you will be prompted to select one.
 
 

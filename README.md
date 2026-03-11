@@ -6,7 +6,7 @@ A command-line interface for managing resources on the [Versori](https://versori
 
 For comprehensive documentation on all commands and features, please visit the [docs](./docs) directory.
 
-You can also read the [Skills Documentation](./pkg/cmd/skills/skills/README.md) to learn about our collection of Agent Skills for working with the Versori platform across AI coding tools.
+You can also read the [Skills Documentation](./skills/README.md) to learn about our collection of Agent Skills for working with the Versori platform across AI coding tools.
 
 ## Installation
 

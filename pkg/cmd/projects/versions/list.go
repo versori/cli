@@ -21,6 +21,7 @@ import (
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -38,7 +39,7 @@ func init() {
 
 type List struct {
 	configFactory *config.ConfigFactory
-	projectId     string
+	projectId     flags.ProjectId
 	limit         int
 }
 
@@ -55,18 +56,17 @@ func NewList(c *config.ConfigFactory) *cobra.Command {
 
 	flags := cmd.Flags()
 
-	flags.StringVar(&l.projectId, "project", "", "The ID of the project to list versions for.")
+	l.projectId.SetFlag(flags)
 	flags.IntVar(&l.limit, "limit", 20, "How many versions to list")
-
-	_ = cmd.MarkFlagRequired("project")
 
 	return cmd
 }
 
 func (l *List) Run(_ *cobra.Command, _ []string) {
+	projectId := l.projectId.GetFlagOrDie(".")
 	versionPage := v1.VersionPage{}
 
-	path := "o/:organisation/projects/" + l.projectId + "/versions"
+	path := "o/:organisation/projects/" + projectId + "/versions"
 
 	err := l.configFactory.
 		NewRequest().

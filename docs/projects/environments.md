@@ -37,7 +37,8 @@ versori projects environments create --project <project-id> --old-env <source-en
 * `-h`, `--help`: help for create
 * `--new-env`: The name of the new environment to create
 * `--old-env`: The name of the source environment to clone from
-* `--project`: The ID of the project
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 
 
 
@@ -60,7 +61,8 @@ versori projects environments promote --project <project-id> --source <source-en
 
 **Flags:**
 * `-h`, `--help`: help for promote
-* `--project`: The ID of the project
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 * `--source`: The name of the source environment to promote from
 * `--target`: The name of the target environment to promote to
 
@@ -88,7 +90,8 @@ versori projects environments update-execution-pool --environment <environment-i
 * `--environment`: The name of the environment to update
 * `--execution-pool`: The name of the new execution pool
 * `-h`, `--help`: help for update-execution-pool
-* `--project`: The ID of the project
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 * `-y`, `--yes`: Skip confirmation prompt
 
 

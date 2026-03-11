@@ -20,6 +20,7 @@ import (
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -44,7 +45,7 @@ type linkSystem struct {
 	systemId        string
 	name            string
 	environmentName string
-	projectId       string
+	projectId       flags.ProjectId
 	dynamic         bool
 }
 
@@ -65,7 +66,7 @@ func NewSystemsAdd(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&l.projectId, "project", "", "The project ID to link the system to")
+	l.projectId.SetFlag(flags)
 	flags.StringVar(&l.systemId, "system", "", "The system ID to link to the project")
 	flags.StringVar(&l.name, "name", "", "A name for the connection template")
 	flags.StringVar(&l.environmentName, "environment", "", "The environment name within the project")
@@ -74,19 +75,20 @@ func NewSystemsAdd(c *config.ConfigFactory) *cobra.Command {
 	_ = cmd.MarkFlagRequired("system")
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("environment")
-	_ = cmd.MarkFlagRequired("project")
 
 	return cmd
 }
 
 func (l *linkSystem) Run(cmd *cobra.Command, args []string) {
+	projectId := l.projectId.GetFlagOrDie(".")
+
 	// Fetch project to resolve environment ID from name
 	project := v1.Project{}
 	err := l.configFactory.
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&project).
-		WithPath("o/:organisation/projects/" + l.projectId).
+		WithPath("o/:organisation/projects/" + projectId).
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to get project").WithReason(err).Done()
@@ -116,7 +118,7 @@ func (l *linkSystem) Run(cmd *cobra.Command, args []string) {
 	err = l.configFactory.
 		NewRequest().
 		WithMethod(http.MethodPost).
-		WithPath("o/:organisation/projects/" + l.projectId + "/connection-templates").
+		WithPath("o/:organisation/projects/" + projectId + "/connection-templates").
 		Into(&resp).
 		JSONBody(payload).
 		Do()

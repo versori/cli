@@ -18,6 +18,7 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
+	"github.com/versori/cli/pkg/cmd/flags"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
@@ -32,7 +33,7 @@ const (
 // edit implements `versori projects edit`.
 type edit struct {
 	configFactory       *config.ConfigFactory
-	projectId           string
+	projectId           flags.ProjectId
 	environmentName     string
 	resourceMemoryReq   string
 	resourceMemoryLimit string
@@ -55,7 +56,8 @@ func NewEdit(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&e.projectId, "project", "", "The project ID")
+
+	e.projectId.SetFlag(flags)
 	flags.StringVar(&e.environmentName, "environment", "", "The environment name")
 	flags.StringVar(&e.resourceMemoryReq, "resource.memory.requests", "", "Memory requests (e.g., 200Mi)")
 	flags.StringVar(&e.resourceMemoryLimit, "resource.memory.limits", "", "Memory limits (e.g., 500Mi)")
@@ -66,13 +68,14 @@ func NewEdit(c *config.ConfigFactory) *cobra.Command {
 	flags.StringVar(&e.serviceAccount, "service-account", "", "Service account to use for the environment. Pass an empty string to remove the service account")
 	flags.StringVar(&e.staticIP, "static-ip", "", "Enable or disable static IP (enabled/disabled)")
 
-	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("environment")
 
 	return cmd
 }
 
 func (e *edit) Run(cmd *cobra.Command, args []string) {
+	projectId := e.projectId.GetFlagOrDie(".")
+
 	// Validate static-ip flag if provided
 	if e.staticIP != "" && e.staticIP != staticIPEnabled && e.staticIP != staticIPDisabled {
 		utils.NewExitError().WithMessage("--static-ip must be either 'enabled' or 'disabled'").Done()
@@ -96,7 +99,7 @@ func (e *edit) Run(cmd *cobra.Command, args []string) {
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&project).
-		WithPath("o/:organisation/projects/" + e.projectId).
+		WithPath("o/:organisation/projects/" + projectId).
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to get project").WithReason(err).Done()

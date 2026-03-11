@@ -17,6 +17,7 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
+	"github.com/versori/cli/pkg/cmd/flags"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
@@ -26,7 +27,7 @@ import (
 // promote implements `versori projects environments promote`.
 type promote struct {
 	configFactory *config.ConfigFactory
-	projectId     string
+	projectId     flags.ProjectId
 	sourceEnv     string
 	targetEnv     string
 }
@@ -58,11 +59,11 @@ For example, to promote staging to production:
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&pr.projectId, "project", "", "The ID of the project")
+
+	pr.projectId.SetFlag(flags)
 	flags.StringVar(&pr.sourceEnv, "source", "", "The name of the source environment to promote from")
 	flags.StringVar(&pr.targetEnv, "target", "", "The name of the target environment to promote to")
 
-	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("source")
 	_ = cmd.MarkFlagRequired("target")
 
@@ -70,6 +71,8 @@ For example, to promote staging to production:
 }
 
 func (p *promote) Run(cmd *cobra.Command, args []string) {
+	projectId := p.projectId.GetFlagOrDie(".")
+
 	payload := v1.SyncEnvironmentsRequest{
 		SourceEnvName: p.sourceEnv,
 		TargetEnvName: p.targetEnv,
@@ -79,7 +82,7 @@ func (p *promote) Run(cmd *cobra.Command, args []string) {
 	err := p.configFactory.
 		NewRequest().
 		WithMethod(http.MethodPost).
-		WithPath("o/:organisation/projects/" + p.projectId + "/environments/sync").
+		WithPath("o/:organisation/projects/" + projectId + "/environments/sync").
 		Into(&resp).
 		JSONBody(payload).
 		Do()
