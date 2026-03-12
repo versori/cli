@@ -9,6 +9,7 @@ A collection of Skills for working with the [Versori](https://versori.com) platf
 Helps Claude write expert-level data integration code using the [versori-run](https://www.npmjs.com/package/@versori/run) SDK. Triggers when the user wants to build or debug ETL processes, API integrations, data transformation pipelines, webhooks, database sync workflows, or any other data integration service.
 
 **Covers:**
+
 - TypeScript workflow authoring using the versori-run SDK
 - Schedule, webhook, and durable workflow patterns
 - KV store usage for incremental sync and stateful batch processing
@@ -21,8 +22,7 @@ Helps Claude write expert-level data integration code using the [versori-run](ht
 coding-versori-sdk/
 ├── SKILL.md                  # Core workflow patterns and critical rules
 └── references/
-    ├── kv-store.md           # KV store API, correct/incorrect usage patterns
-    ├── durable.md            # Durable workflow structure and options
     ├── research-docs.md      # Research document structure and guidelines
+    ├── versori-sdk-usage.md  # Comprehensive guide on how ti use the versori/run SDK for implementing an integration
     └── cli-usage.md          # CLI tools, environment variables, deployment safety
 ```
