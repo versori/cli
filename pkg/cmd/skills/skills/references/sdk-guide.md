@@ -2,6 +2,51 @@
 
 Reference for generating integration workflows with the Versori Run SDK. Covers core concepts, usage patterns, and best practices.
 
+## Contents
+
+- [Users and Activations](#users-and-activations)
+- [Core Concepts](#core-concepts)
+  - [Workflows](#workflows)
+  - [Triggers](#triggers)
+  - [Tasks](#tasks)
+  - [Interpreters](#interpreters)
+- [Basic Patterns](#basic-patterns)
+  - [Starting a Project](#starting-a-project)
+  - [Scheduled Workflow](#scheduled-workflow)
+  - [Webhook Handler](#webhook-handler)
+  - [HTTP Task with Authenticated Connection](#http-task-with-authenticated-connection)
+  - [Error Handling](#error-handling)
+  - [Accessing Credentials Outside an HTTP Task](#accessing-credentials-outside-an-http-task)
+  - [Creating Issues](#creating-issues)
+    - [Parameters](#parameters)
+    - [Options](#options)
+    - [Example](#example)
+- [Durable Workflows](#durable-workflows)
+  - [Defining a Durable Workflow](#defining-a-durable-workflow)
+  - [Starting a Durable Workflow](#starting-a-durable-workflow)
+    - [Workflow Object Properties](#workflow-object-properties)
+  - [Rescheduling Workflows](#rescheduling-workflows)
+  - [WorkflowClient Methods](#workflowclient-methods)
+  - [Using KV Storage with Durable Workflows](#using-kv-storage-with-durable-workflows)
+- [Context Object (`ctx`)](#context-object-ctx)
+  - [Activation](#activation)
+    - [Properties](#properties)
+    - [Methods](#methods)
+    - [User Type](#user-type)
+  - [AsyncWorkflow](#asyncworkflow)
+- [Key-Value Storage](#key-value-storage)
+- [Common Patterns](#common-patterns)
+  - [Data Transformation Pipeline](#data-transformation-pipeline)
+  - [Error Handling with Issue Reporting](#error-handling-with-issue-reporting)
+  - [Retry](#retry)
+    - [Generic Retry Helper](#generic-retry-helper)
+    - [HTTP Retry with Timeout and Abort](#http-retry-with-timeout-and-abort)
+- [HttpContext (for `http` Tasks)](#httpcontext-for-http-tasks)
+- [Webhook Options Reference](#webhook-options-reference)
+- [Quick Reference](#quick-reference)
+- [Type Signatures](#type-signatures)
+- [Best Practices](#best-practices)
+
 ## Users and Activations
 
 A **user** represents an external user on the Versori platform. Users hold credentials for external systems.
