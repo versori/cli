@@ -111,6 +111,7 @@ func UploadAssetFile(cf *config.ConfigFactory, orgId, projectId, filePath string
 		ContentType:   contentType,
 		ContentLength: info.Size(),
 		Filename:      filename,
+		Folder:        "research/documents",
 	}
 
 	requestPath := "assets/organisations/" + orgId + "/" + projectId + "/signed-url"

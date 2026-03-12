@@ -32,6 +32,7 @@ type signedURLRequest struct {
 	ContentType   string `json:"contentType"`
 	ContentLength int64  `json:"contentLength"`
 	Filename      string `json:"filename"`
+	Folder        string `json:"folder,omitempty"`
 }
 
 type signedURLResponse struct {
@@ -88,6 +89,7 @@ func (u *upload) Run(cmd *cobra.Command, args []string) {
 		ContentType:   contentType,
 		ContentLength: info.Size(),
 		Filename:      filename,
+		Folder:        "research/documents",
 	}
 
 	requestPath := "assets/organisations/" + orgId + "/" + projectId + "/signed-url"
