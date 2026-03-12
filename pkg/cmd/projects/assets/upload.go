@@ -28,6 +28,13 @@ import (
 	"github.com/versori/cli/pkg/utils"
 )
 
+// AllowedFolders defines the set of folder values accepted by the signed-URL endpoint.
+var AllowedFolders = []string{
+	"attachments/raw",
+	"research/documents",
+	"research/workflows",
+}
+
 type signedURLRequest struct {
 	ContentType   string `json:"contentType"`
 	ContentLength int64  `json:"contentLength"`
@@ -44,6 +51,7 @@ type upload struct {
 	configFactory *config.ConfigFactory
 	projectId     flags.ProjectId
 	file          string
+	folder        string
 }
 
 func NewUpload(c *config.ConfigFactory) *cobra.Command {
@@ -61,6 +69,7 @@ func NewUpload(c *config.ConfigFactory) *cobra.Command {
 	flags := cmd.Flags()
 	u.projectId.SetFlag(flags)
 	flags.StringVarP(&u.file, "file", "f", "", "Path to the file to upload (required)")
+	flags.StringVar(&u.folder, "folder", "", "Destination folder for the uploaded asset (attachments/raw, research/documents, research/workflows)")
 
 	_ = cmd.MarkFlagRequired("file")
 
@@ -70,6 +79,12 @@ func NewUpload(c *config.ConfigFactory) *cobra.Command {
 func (u *upload) Run(cmd *cobra.Command, args []string) {
 	projectId := u.projectId.GetFlagOrDie(".")
 	orgId := u.configFactory.Context.OrganisationId
+
+	if u.folder != "" && !IsValidFolder(u.folder) {
+		utils.NewExitError().
+			WithMessage(fmt.Sprintf("invalid folder %q — allowed values: %s", u.folder, strings.Join(AllowedFolders, ", "))).
+			Done()
+	}
 
 	// Stat the file to get content length and derive metadata.
 	info, err := os.Stat(u.file)
@@ -89,7 +104,7 @@ func (u *upload) Run(cmd *cobra.Command, args []string) {
 		ContentType:   contentType,
 		ContentLength: info.Size(),
 		Filename:      filename,
-		Folder:        "research/documents",
+		Folder:        u.folder,
 	}
 
 	requestPath := "assets/organisations/" + orgId + "/" + projectId + "/signed-url"
@@ -161,4 +176,14 @@ var allowedContentTypes = map[string]string{
 func ContentTypeFromFilename(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	return allowedContentTypes[ext]
+}
+
+// IsValidFolder reports whether folder is one of the AllowedFolders values.
+func IsValidFolder(folder string) bool {
+	for _, f := range AllowedFolders {
+		if f == folder {
+			return true
+		}
+	}
+	return false
 }
