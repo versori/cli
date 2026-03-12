@@ -24,54 +24,6 @@ The runtime is **Deno 2.3**.
 
 Avoid Node-only APIs (`require()`, `__dirname`, `__filename`). Use Deno-compatible alternatives or standard web APIs where possible.
 
-## Workflow Pattern
-
-```typescript
-import { fn, durable, schedule, http, webhook, workflow } from '@versori/run';
-
-const myWorkflow = schedule('every-minute', '* * * * *')
-    .then(
-        http('fetch-data', { connection: 'source-system' }, async ({ fetch, log, openKv, activation }) => {
-            const kv = openKv();
-            const lastSync = await kv.get<string>('lastSync');
-            const storeId = activation.getVariable('storeId') as string;
-
-            log.info('Fetching data', { lastSync, storeId });
-
-            const params = new URLSearchParams();
-            if (lastSync) params.append('since', lastSync);
-
-            // CRITICAL: Use PATH only, never full URLs
-            const resp = await fetch(`/stores/${storeId}/data?${params}`);
-            if (!resp.ok) throw new Error('Failed to fetch data');
-
-            await kv.set('lastSync', new Date().toISOString());
-            return await resp.json();
-        })
-    )
-    .then(
-        fn('process-data', ({ log, data }) => {
-            log.debug('Processing data');
-            return { processed: true, result: data };
-        })
-    )
-    .then(
-        http('send-data', { connection: 'target-system' }, async ({ fetch, data }) => {
-            const resp = await fetch('/data', { method: 'POST', body: JSON.stringify(data) });
-            if (!resp.ok) throw new Error('Failed to send data');
-            return await resp.json();
-        })
-    );
-
-async function main(): Promise<void> {
-    const mi = await durable.DurableInterpreter.newInstance();
-    mi.register(myWorkflow);
-    await mi.start();
-}
-
-main().then().catch((err) => console.error('Failed to run main()', err));
-```
-
 ## Required Project Files
 
 Every generated project MUST include these files:
@@ -99,16 +51,8 @@ main().then().catch((err) => console.error('Failed to run main()', err));
   "version": "1.0.0",
   "type": "module",
   "module": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js"
-  },
   "dependencies": {
     "@versori/run": "^0.4.0"
-  },
-  "devDependencies": {
-    "typescript": "^4.9.0",
-    "ts-node": "^10.9.0"
   }
 }
 ```
@@ -141,55 +85,16 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 
 ## Critical Rules
 
-### HTTP Requests
-
-- **Always** use `http()` tasks for API requests, never `fn()`
-- **Always** use `ctx.fetch` (destructured as `fetch`) — never global `fetch` or NPM packages
-- **Always** use the PATH only in fetch URLs, never full URLs
-  - ✅ `fetch('/api/v1/resource')`
-  - ❌ `fetch('https://api.example.com/api/v1/resource')`
-
 ### Connection Names
 
 - After research, review the System & Authentication section for any systems that need user-specific configuration (e.g., shop domain, subdomain, instance URL). Ask the user for these values before proceeding. Then run `versori projects systems bootstrap --file <path> --project <id> --system-overrides '<json>'` (passing confirmed user-specific values via the overrides flag) to create systems, and run `versori projects systems list --project <id> --environment <env>` to verify what was created
 - **Before creating a connection**, run `versori connection list` to see existing connection names. Connection names must be unique — do not reuse a name that already exists.
-- After verifying systems, create connections for each system using `versori connections create --project <id> --environment <env> --name <system-name> --template-id <template-id> --bypass` (use `--bypass` while connections are in active development)
-- **Always** run `versori projects systems list` before generating workflow code if a project ID is known
+- After verifying systems, create connections for each system using `versori connections create --project <id> --environment <env> --name <system-name> --template-id <template-id> --bypass` (use `--bypass` while connections are in active development). The name passed in here doesn't matter and it should be suffixed with some random characters to avoid name conflcits when creating a bypass connections.
+- **Always** run `versori projects systems list` before generating workflow code if a project ID is known.
 - Use **exact** system names from the returned list — case-sensitive, no reformatting
   - ✅ `http('fetch', { connection: 'shopify' }, ...)` (if system is named `shopify`)
   - ❌ `http('fetch', { connection: 'Shopify' }, ...)`
 - If a required system is **still missing after bootstrap**, stop and tell the user which systems are missing before writing any code. Ask for the name of their org, then give them the direct link `https://ai.versori.com/integrations/<project-id>?org=<org>` to add the missing systems. Proceed once they confirm.
-
-### Task Types
-
-- `http()` — API requests (requires a `connection`)
-- `fn()` — data processing, transformation, business logic only
-
-### KV Store
-
-Only use for data that persists between executions AND is both SET and READ in the workflow.
-See `references/kv-store.md` for patterns, API details, and anti-patterns.
-
-### Durable Workflows
-
-DurableInterpreter is the default choice for production workflows. Use MemoryInterpreter only for development, testing, or workflows that don't need persistent KV.
-See `references/durable.md` for structure and options.
-
-## Trigger Variations
-
-```typescript
-schedule('daily-sync', '0 0 * * *')       // Daily at midnight
-schedule('hourly', '0 * * * *')           // Every hour
-schedule('every-5-min', '*/5 * * * *')    // Every 5 minutes
-webhook('stripe-webhook', '/webhooks/stripe')
-```
-
-## Integration Variables
-
-```typescript
-const apiKey = activation.getVariable('apiKey') as string;
-activation.setVariable('lastSyncTime', new Date().toISOString());
-```
 
 ## CLI Commands
 
@@ -208,6 +113,7 @@ Before writing any code or running CLI commands that require a project ID, deter
 2. **No `.versori` file** — ask the user whether they want to use an existing project or create a new one:
    - **Existing project**: run `versori projects list` to show available projects, let the user pick one, then continue (sync it down if needed).
    - **New project**: run `versori projects create --name <name>` to create a fresh project and use the returned ID.
+   - **SYnc project**: run `versori projects sync --project <project-id>` to pull in the porrject context locally before moving on with the next tasks.
 
 When a `.versori` file is present, most CLI commands (`deploy`, `save`, `sync`, `systems`, `assets`, etc.) automatically read the project ID from it, so the `--project` flag can be omitted.
 
@@ -247,3 +153,7 @@ After confirming any required values, run `versori projects systems bootstrap --
 After bootstrapping, upload the research document as a project asset using `versori projects assets upload --file versori-research/research.md --project <id>` so it is available as context for Versori AI agents.
 
 See `references/research-docs.md` for the required document structure, inclusions, and exclusions.
+
+## SDK Reference
+
+Before writing any workflow code, read `references/sdk-guide.md` for the full Versori Run SDK guide covering core concepts (workflows, triggers, tasks, interpreters), usage patterns (scheduled workflows, webhooks, HTTP tasks, error handling, durable workflows, KV storage), context API, type signatures, and best practices for code generation.

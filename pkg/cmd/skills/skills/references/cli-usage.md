@@ -2,19 +2,20 @@
 
 ## CLI Commands
 
-### `versori status`
-Check if the Versori CLI is installed. Returns binary path and help output. Run first to verify CLI availability.
-
 ### `versori context select <context>`
-Switch context. Uses `VERSORI_DEFAULT_CONTEXT` env var if set.
+
+Switch context. Uses `VERSORI_DEFAULT_CONTEXT` env var if set. If the user asks to switch contexts you can use this command to switch to a different context.
 
 ### `versori projects list`
+
 List all projects in the current context. Use this to discover project IDs when the user doesn't know them.
 
 ### `versori projects create --name <name>`
+
 Create a new project. Returns a 26-character ULID project ID.
 
 ### `versori project sync --directory <dir> --project <id>`
+
 Download project files from the Versori platform to a local directory.
 
 **WARNING: `sync` WILL DELETE any local files in the target directory that are not present in the platform.** Always use `--dry-run` first to preview what will be updated or deleted before executing for real.
@@ -22,11 +23,13 @@ Download project files from the Versori platform to a local directory.
 Use this when the user wants to pull down an existing project to edit locally. After syncing, the user can edit the code and redeploy.
 
 ### `versori projects systems list --project <id> --environment <env>`
+
 List systems linked to a project. Returns the systems configured in the given project and environment.
 
 Run this before generating workflow code to discover available system names. If a required system is missing from the list, **do not generate code for it** — instead, ask the user for the name of their org, then give them the direct link `https://ai.versori.com/integrations/<project-id>?org=<org>` to configure the missing systems before proceeding.
 
 ### `versori projects systems bootstrap --file <path> --project <id> [--system-overrides <json>]`
+
 Bootstrap systems in a project from a research context file.
 
 The `--file` flag is required and should point to the research document (typically `versori-research/research.md`). The `--project` flag provides the project ID; it defaults from `.versori` when inside a synced project directory.
@@ -42,41 +45,49 @@ The `--system-overrides` flag accepts a JSON string keyed by system name, where 
 Create a connection for a system in a project. Run this after `versori projects systems list`, once per system.
 
 **Required flags:**
+
 - `--project <id>` — Project ID
 - `--environment <env>` — Environment name (e.g. `production`)
-- `--name <name>` — Connection name (must match a system name from `systems list`)
+- `--name <name>` — Connection name it just a human readable reference to show in the UIU. It doesn't impact functionality. To avoid issues with name conflicts suffix it with random characters.
 - `--template-id <id>` — Template ID (from `systems list` output)
 
 **Optional flags:**
+
 - `--bypass` — Bypass connection validation (**use this for now** — connections are in active development)
-- `--external-id <id>` — External identifier
+- `--external-id <id>` — External identifier ffor dynamic connections. This is the end user external ID. It should be left empty.
 - `--base-url <url>` — Base URL for the connection
 - `--api-key <key>` — API key for authentication
 - `--username <user>` / `--password <pass>` — Basic auth credentials
 
-**Always use `--bypass`** while connections are in active development. The `--template-id` value comes from the `systems list` output.
+**Always use `--bypass`** while connections are in active development. The `--template-id` value comes from the `versoru projects systems list` output.
 
 ### `versori projects versions list --project <id>`
+
 List the most recent deployed versions of a project.
 
 Run this before deploying to see what versions already exist so you can pick the next version number. Version numbers are plain integers (e.g. `1`, `2`, `3`).
 
 ### `versori projects assets list --project <id>`
+
 List all assets for a project. Use to discover what assets are already uploaded before uploading or downloading.
 
 ### `versori projects assets upload --file <path> --project <id>`
+
 Upload a file as a project asset. Assets can be used as context by Versori AI agents. The `--file` flag is required. `--project` defaults from `.versori` when inside a synced project directory. Use this after research to upload the research document as a project asset.
 
 ### `versori projects assets download --asset <name> --directory <dir> --project <id>`
+
 Download an asset by name. The `--asset` flag is required. `--directory` defaults to `versori-research`. `--project` defaults from `.versori` when inside a synced project directory. Use when pulling down research or other context files from an existing project.
 
-### `versori project deploy -d <dir> --project=<id> --environment <env> --version <ver>`
-Deploy a project.
+### `versori project deploy -d <dir> --project=<id> --environment <env> --assets`
+
+Deploy a project and uplaod the project asset files as well.
 
 **Defaults:**
+
 - Directory: `.`
 - Environment: `production` (or `VERSORI_DEFAULT_ENVIRONMENT`)
-- Version: `1`
+- Version: Can be left empty and the CLI will generate a name based on the current timestamp.
 
 Add `--dry-run` to show what would happen without executing.
 
@@ -125,6 +136,7 @@ When a `.versori` file is present in the current directory, the `--project` flag
 ## Workflow
 
 **Step 1 — Determine the active project:**
+
 ```bash
 # Check if a .versori file exists in the current directory.
 # If it does, the project ID is already known — skip to step 2.
@@ -142,12 +154,10 @@ versori projects create --name "my-integration"
 ```
 
 **New project (continued):**
+
 ```bash
 # 1. (Optional) Check CLI availability
-versori status
-
-# 2. Select context if needed
-versori context select demo
+versori version
 
 # 3. After research phase produces versori-research/research.md,
 #    review System & Authentication for user-specific config (shop domains, subdomains, etc.)
@@ -177,6 +187,7 @@ versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment p
 ```
 
 **Existing project (pull down and edit):**
+
 ```bash
 # 1. Find the project ID
 versori projects list
@@ -185,8 +196,8 @@ versori projects list
 # 2. Dry-run sync to preview changes
 versori project sync --directory shopify-sync/01KH6HD9QNAT57MGEPYG4CY9J5 --project 01KH6HD9QNAT57MGEPYG4CY9J5 --dry-run
 
-# 3. On confirmation, sync for real
-versori project sync --directory shopify-sync/01KH6HD9QNAT57MGEPYG4CY9J5 --project 01KH6HD9QNAT57MGEPYG4CY9J5
+# 3. On confirmation, sync for real file and the projects assets if there are any
+versori project sync --directory shopify-sync/01KH6HD9QNAT57MGEPYG4CY9J5 --project 01KH6HD9QNAT57MGEPYG4CY9J5 --assets
 
 # 4. Download existing research/context assets
 versori projects assets download --asset research.md --project 01KH6HD9QNAT57MGEPYG4CY9J5
@@ -199,21 +210,26 @@ versori projects versions list --project 01KH6HD9QNAT57MGEPYG4CY9J5
 ## Example Interactions
 
 **Create and deploy:**
+
 ```
 User: "Create a project called 'shopify-sync' and deploy the code I wrote"
 1. Run: versori projects create --name "shopify-sync"
-2. Note the returned project ID
-3. Ask: "Created project 01KH6HD9QNAT57MGEPYG4CY9J5. Deploy to production now?"
-4. On confirmation: versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --version 1
+2. Create a .gitignore to make sure no user files are deleted
+3. Run: versori project sync --project <id> --dry-run /  versori project sync --project <id> to get the .versori file locally
+4. Note the returned project ID
+5. Ask: "Created project 01KH6HD9QNAT57MGEPYG4CY9J5. Deploy to production now?"
+6. On confirmation: versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production
 ```
 
 **Dry-run:**
+
 ```
 User: "What would the deployment command look like?"
-→ versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --version 1 --dry-run
+→ versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --dry-run
 ```
 
 **List projects to find an ID:**
+
 ```
 User: "I want to edit my shopify-sync project but I don't know the ID"
 1. Run: versori projects list
@@ -222,24 +238,17 @@ User: "I want to edit my shopify-sync project but I don't know the ID"
 ```
 
 **Sync an existing project:**
+
 ```
 User: "Pull down project 01KH6HD... to edit locally"
-1. Run: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --dry-run
+1. Run: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets --dry-run
    → shows files that will be updated/deleted
 2. "Here's what sync will change. Shall I go ahead?"
-3. On confirmation: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD...
-```
-
-**Check versions before deploying:**
-```
-User: "Deploy my updated code to project 01KH6HD..."
-1. Run: versori projects versions list --project 01KH6HD...
-   → version 2, version 1
-2. "Latest version is 2. Deploy as version 3 to production?"
-3. On confirmation: versori project deploy -d . --project=01KH6HD... --environment production --version 3
+3. On confirmation: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets
 ```
 
 **Bootstrap systems from research:**
+
 ```
 User: "I've finished the research for project 01KH6HD..., set up the systems"
 1. Review the System & Authentication section of the research document
@@ -253,6 +262,7 @@ User: "I've finished the research for project 01KH6HD..., set up the systems"
 ```
 
 **Upload research after completing it:**
+
 ```
 User: "I've finished the research, upload it to the project"
 1. Run: versori projects assets upload --file versori-research/research.md --project 01KH6HD...
@@ -260,6 +270,7 @@ User: "I've finished the research, upload it to the project"
 ```
 
 **Download research from an existing project:**
+
 ```
 User: "Pull down the research for project 01KH6HD..."
 1. Run: versori projects assets list --project 01KH6HD...
@@ -269,6 +280,7 @@ User: "Pull down the research for project 01KH6HD..."
 ```
 
 **Create connections after bootstrap:**
+
 ```
 User: "Systems are bootstrapped for project 01KH6HD..., now set up connections"
 1. Run: versori projects systems list --project 01KH6HD... --environment production
@@ -279,6 +291,7 @@ User: "Systems are bootstrapped for project 01KH6HD..., now set up connections"
 ```
 
 **Check systems before writing code:**
+
 ```
 User: "Write a workflow to sync Shopify orders to Snowflake for project 01KH6HD..."
 1. Run: versori projects systems list --project 01KH6HD... --environment production

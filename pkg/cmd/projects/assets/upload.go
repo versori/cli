@@ -69,7 +69,7 @@ func NewUpload(c *config.ConfigFactory) *cobra.Command {
 	flags := cmd.Flags()
 	u.projectId.SetFlag(flags)
 	flags.StringVarP(&u.file, "file", "f", "", "Path to the file to upload (required)")
-	flags.StringVar(&u.folder, "folder", "", "Destination folder for the uploaded asset (attachments/raw, research/documents, research/workflows)")
+	flags.StringVar(&u.folder, "folder", "research/documents", "Destination folder for the uploaded asset (attachments/raw, research/documents, research/workflows)")
 
 	_ = cmd.MarkFlagRequired("file")
 
