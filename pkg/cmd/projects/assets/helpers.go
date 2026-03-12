@@ -95,7 +95,7 @@ func DownloadAssetToFile(downloadURL, name, directory string) error {
 
 // UploadAssetFile uploads a single file as a project asset via the signed-URL
 // flow. It mirrors the logic used by the `asset upload` subcommand.
-func UploadAssetFile(cf *config.ConfigFactory, orgId, projectId, filePath string) error {
+func UploadAssetFile(cf *config.ConfigFactory, orgId, projectId, filePath, folder string) error {
 	info, err := os.Stat(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to stat file %s: %w", filePath, err)
@@ -111,7 +111,7 @@ func UploadAssetFile(cf *config.ConfigFactory, orgId, projectId, filePath string
 		ContentType:   contentType,
 		ContentLength: info.Size(),
 		Filename:      filename,
-		Folder:        "research/documents",
+		Folder:        folder,
 	}
 
 	requestPath := "assets/organisations/" + orgId + "/" + projectId + "/signed-url"

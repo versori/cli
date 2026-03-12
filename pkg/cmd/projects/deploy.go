@@ -147,7 +147,7 @@ func (d *Deploy) syncAssets(projectId, fullPath string) {
 
 	for _, f := range assetFiles {
 		fmt.Printf("Uploading asset %q...\n", filepath.Base(f))
-		if uploadErr := assets.UploadAssetFile(d.configFactory, orgId, projectId, f); uploadErr != nil {
+		if uploadErr := assets.UploadAssetFile(d.configFactory, orgId, projectId, f, "research/documents"); uploadErr != nil {
 			utils.NewExitError().WithMessage("failed to upload asset").WithReason(uploadErr).Done()
 		}
 		fmt.Printf("Successfully uploaded asset %q\n", filepath.Base(f))
