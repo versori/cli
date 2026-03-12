@@ -70,6 +70,8 @@ versori projects asset upload --file <path> [flags]
 
 **Flags:**
 * `-f`, `--file`: Path to the file to upload (required)
+* `--folder`: Destination folder for the uploaded asset (attachments/raw, research/documents, research/workflows)
+
 * `-h`, `--help`: help for upload
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
