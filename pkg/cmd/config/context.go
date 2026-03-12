@@ -17,5 +17,4 @@ type Context struct {
 	Name           string `yaml:"name"`
 	OrganisationId string `yaml:"organisation_id"`
 	JWT            string `yaml:"jwt"`
-	SigningKey     string `yaml:"signing_key"`
 }

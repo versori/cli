@@ -14,6 +14,7 @@
 package context
 
 import (
+	"bufio"
 	"io"
 	"strings"
 
@@ -75,12 +76,12 @@ func (a *add) Run(cmd *cobra.Command, _ []string) {
 	}
 
 	if a.jwt == "-" {
-		b, err := io.ReadAll(cmd.InOrStdin())
-		if err != nil {
+		line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+		if err != nil && err != io.EOF {
 			utils.NewExitError().WithMessage("failed to read jwt from stdin").WithReason(err).Done()
 		}
 
-		a.jwt = strings.TrimSpace(string(b))
+		a.jwt = strings.TrimSpace(line)
 	}
 
 	if a.jwt == "" {
