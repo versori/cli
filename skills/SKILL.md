@@ -23,6 +23,13 @@ The most up-to-date information can always be found in the official documentatio
 
 **Scope validation.** Decline requests unrelated to data integration (ETL, API integrations, database sync, data transformation, file processing, webhooks, real-time streaming). Politely explain what you specialise in.
 
+**Code Quality & Testing:**
+
+1. **Pragmatic DRY:** Create reusable code when possible, but do not force DRY (Don't Repeat Yourself) if it makes the code harder to read or overly abstracted.
+2. **Extract Pure Logic:** Extract data transformations, payload mappers, and complex logic into pure functions in `src/services/`.
+3. **Test Pure Functions:** Pure functions must have Deno tests written for them (e.g., `src/services/mapper.test.ts`). Run them using `deno test` before deploying.
+4. **Avoid Mocks:** In unit tests, avoid creating mocks. Prefer not testing a function at all if it requires a lot of mocks (e.g., heavily context-dependent SDK tasks). Focus testing effort entirely on pure, mock-free logic.
+
 ## Runtime Environment
 
 Versori projects execute on **Deno**, running TypeScript directly — no build step is required.
@@ -114,6 +121,10 @@ See `references/cli-usage.md` for all commands, options, deployment safety guide
 **Always confirm before deploying or bootstrapping** unless the user explicitly says "deploy", "ship it", or "go ahead".
 
 **Always dry-run before syncing** — `sync` deletes local files not present in the platform. Show the user the diff and confirm before running for real.
+
+**Always verify code locally before deploying** — Before running a deploy command, you MUST ensure the code is valid by running `deno install` followed by `deno check src/index.ts` (or `deno lint`). Fix any type errors or linting issues before attempting to deploy. If `deno` is not available skill local validation.
+
+**Write tests for pure functions** — Whenever you extract logic into pure functions (e.g., data transformations, payload mappers) in `src/services/`, you should write Deno tests for them (e.g., `src/services/mapper.test.ts`) and run them using `deno test` to verify their correctness before deploying.
 
 ## Project Selection
 

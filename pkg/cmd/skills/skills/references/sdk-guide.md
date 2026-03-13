@@ -812,3 +812,5 @@ interface KeyValue {
 4. **Return data from tasks** — the next task receives it via `ctx.data`.
 5. **Use `http` for API calls** — automatic authentication via connections.
 6. **Use `fn` for data processing** — pure logic without external calls.
+7. **Extract and test pure logic** — move data transformations to reusable functions in `src/services/` and write Deno tests for them. Do not force DRY if it hurts readability. Avoid testing functions that require heavy mocking.
+8. **Installing dependencies** - When installing dependencies prefer using `deno install <dependency>` if deno installed. This way we get the latest versions of packages.

@@ -17,11 +17,13 @@ import (
 	"archive/zip"
 	"bytes"
 	"embed"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -40,6 +42,7 @@ type download struct {
 	configFactory *config.ConfigFactory
 	directory     string
 	latest        bool
+	agent         bool
 }
 
 func NewDownload(c *config.ConfigFactory) *cobra.Command {
@@ -63,26 +66,40 @@ skills directly from the main branch of the GitHub repository.`,
 	f := cmd.Flags()
 	f.StringVarP(&d.directory, "directory", "d", "./skills", "Directory to save the skills into. It will append the skill name to the directory.")
 	f.BoolVar(&d.latest, "latest", false, "Download the latest version of the skills")
+	f.BoolVar(&d.agent, "agent", false, "Combine skills into a single AGENTS.md file")
 
 	return cmd
 }
 
 func (d *download) Run(cmd *cobra.Command, args []string) {
+	var files map[string][]byte
+
 	if d.latest {
-		d.downloadLatest()
-		return
+		files = d.collectZipFiles()
+	} else {
+		files = d.collectEmbeddedFiles()
 	}
 
-	dirName := filepath.Join(d.directory, skillsDirectory)
-
-	err := os.MkdirAll(dirName, 0755)
-	if err != nil {
-		utils.NewExitError().WithMessage("failed to create directory").WithReason(err).Done()
+	if d.agent {
+		d.combineAndWrite(files)
+	} else {
+		d.writeFiles(files)
 	}
+}
 
-	err = fs.WalkDir(f, "skills", func(path string, entry fs.DirEntry, err error) error {
+func (d *download) collectEmbeddedFiles() map[string][]byte {
+	files := make(map[string][]byte)
+	err := fs.WalkDir(f, "skills", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		if d.agent && !strings.HasSuffix(entry.Name(), ".md") {
+			return nil
 		}
 
 		rel, err := filepath.Rel("skills", path)
@@ -90,36 +107,31 @@ func (d *download) Run(cmd *cobra.Command, args []string) {
 			return err
 		}
 
-		target := filepath.Join(dirName, rel)
-
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0755)
-		}
-
 		data, err := f.ReadFile(path)
 		if err != nil {
 			return err
 		}
 
-		return os.WriteFile(target, data, 0644)
+		files[rel] = data
+		return nil
 	})
 
 	if err != nil {
-		utils.NewExitError().WithMessage("failed to extract embedded skills").WithReason(err).Done()
+		utils.NewExitError().WithMessage("failed to read embedded skills").WithReason(err).Done()
 	}
+
+	return files
 }
 
-func (d *download) downloadLatest() {
+func (d *download) collectZipFiles() map[string][]byte {
 	resp, err := http.Get("https://github.com/versori/cli/archive/refs/heads/main.zip")
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to download latest skills").WithReason(err).Done()
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		utils.NewExitError().WithMessage("failed to download latest skills: unexpected status code from github: " + resp.Status).Done()
+		utils.NewExitError().WithMessage(fmt.Sprintf("failed to download latest skills: unexpected status code from github: %s", resp.Status)).Done()
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -133,45 +145,104 @@ func (d *download) downloadLatest() {
 	}
 
 	prefix := "cli-main/skills/"
+	files := make(map[string][]byte)
 
 	for _, file := range zipReader.File {
 		if !strings.HasPrefix(file.Name, prefix) {
 			continue
 		}
 
-		relPath := strings.TrimPrefix(file.Name, prefix)
-		if relPath == "" {
-			continue
-		}
-
-		target := filepath.Join(d.directory, skillsDirectory, relPath)
-
 		if file.FileInfo().IsDir() {
-			_ = os.MkdirAll(target, 0755)
 			continue
 		}
+
+		if d.agent && !strings.HasSuffix(file.Name, ".md") {
+			continue
+		}
+
+		relPath := strings.TrimPrefix(file.Name, prefix)
+
+		rc, err := file.Open()
+		if err != nil {
+			utils.NewExitError().WithMessage("failed to open skill file from zip").WithReason(err).Done()
+		}
+
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			utils.NewExitError().WithMessage("failed to read skill file from zip").WithReason(err).Done()
+		}
+
+		files[relPath] = data
+	}
+
+	return files
+}
+
+func (d *download) writeFiles(files map[string][]byte) {
+	dirName := filepath.Join(d.directory, skillsDirectory)
+	if err := os.MkdirAll(dirName, 0755); err != nil {
+		utils.NewExitError().WithMessage("failed to create directory").WithReason(err).Done()
+	}
+
+	for relPath, data := range files {
+		target := filepath.Join(dirName, relPath)
 
 		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 			utils.NewExitError().WithMessage("failed to create directory for skill file").WithReason(err).Done()
 		}
 
-		outFile, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-		if err != nil {
-			utils.NewExitError().WithMessage("failed to create skill file").WithReason(err).Done()
-		}
-
-		rc, err := file.Open()
-		if err != nil {
-			_ = outFile.Close()
-			utils.NewExitError().WithMessage("failed to open skill file from zip").WithReason(err).Done()
-		}
-
-		_, err = io.Copy(outFile, rc)
-		_ = rc.Close()
-		_ = outFile.Close()
-
-		if err != nil {
+		if err := os.WriteFile(target, data, 0644); err != nil {
 			utils.NewExitError().WithMessage("failed to write skill file").WithReason(err).Done()
 		}
+	}
+}
+
+func (d *download) combineAndWrite(files map[string][]byte) {
+	if err := os.MkdirAll(d.directory, 0755); err != nil {
+		utils.NewExitError().WithMessage("failed to create directory").WithReason(err).Done()
+	}
+
+	var paths []string
+	for path := range files {
+		paths = append(paths, path)
+	}
+
+	sort.Slice(paths, func(i, j int) bool {
+		nameI := filepath.Base(paths[i])
+		nameJ := filepath.Base(paths[j])
+
+		rank := func(name string) int {
+			if strings.EqualFold(name, "readme.md") {
+				return 0
+			}
+			if strings.EqualFold(name, "skill.md") || strings.EqualFold(name, "skills.md") {
+				return 1
+			}
+			return 2
+		}
+
+		rankI := rank(nameI)
+		rankJ := rank(nameJ)
+
+		if rankI != rankJ {
+			return rankI < rankJ
+		}
+		return paths[i] < paths[j]
+	})
+
+	var combinedContent bytes.Buffer
+
+	for _, path := range paths {
+		content := files[path]
+		combinedContent.WriteString(fmt.Sprintf("\n\n<!-- BEGIN %s -->\n\n", path))
+		combinedContent.Write(content)
+		combinedContent.WriteString(fmt.Sprintf("\n\n<!-- END %s -->\n", path))
+	}
+
+	target := filepath.Join(d.directory, "AGENTS.md")
+	err := os.WriteFile(target, combinedContent.Bytes(), 0644)
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to write AGENTS.md file").WithReason(err).Done()
 	}
 }

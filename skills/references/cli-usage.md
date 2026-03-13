@@ -182,7 +182,13 @@ versori connections create --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment pr
 versori projects versions list --project 01KH6HD9QNAT57MGEPYG4CY9J5
 # → (no versions yet — use version 1)
 
-# 8. After writing code and confirming with user, deploy
+# 8. Verify code validity locally
+deno install
+deno check src/index.ts
+# Run tests if applicable
+deno test
+
+# 9. After writing code, verifying it, and confirming with user, deploy
 versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --version 1
 ```
 
@@ -205,6 +211,11 @@ versori projects assets download --asset research.md --project 01KH6HD9QNAT57MGE
 # 5. List systems, create connections (with --bypass) if needed, edit code, list versions to pick next version number, then deploy
 versori projects versions list --project 01KH6HD9QNAT57MGEPYG4CY9J5
 # → version 3, version 2, version 1 → use version 4
+
+# 6. Verify code validity locally before deploying
+deno install
+deno check src/index.ts
+deno test
 ```
 
 ## Example Interactions
@@ -217,8 +228,9 @@ User: "Create a project called 'shopify-sync' and deploy the code I wrote"
 2. Create a .gitignore to make sure no user files are deleted
 3. Run: versori project sync --project <id> --dry-run /  versori project sync --project <id> to get the .versori file locally
 4. Note the returned project ID
-5. Ask: "Created project 01KH6HD9QNAT57MGEPYG4CY9J5. Deploy to production now?"
-6. On confirmation: versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production
+5. Run: deno install && deno check src/index.ts (and deno test if applicable) to verify code
+6. Ask: "Created project 01KH6HD9QNAT57MGEPYG4CY9J5 and verified code. Deploy to production now?"
+7. On confirmation: versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production
 ```
 
 **Dry-run:**
