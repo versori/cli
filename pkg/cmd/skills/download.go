@@ -128,7 +128,9 @@ func (d *download) collectZipFiles() map[string][]byte {
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to download latest skills").WithReason(err).Done()
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		utils.NewExitError().WithMessage(fmt.Sprintf("failed to download latest skills: unexpected status code from github: %s", resp.Status)).Done()
@@ -168,7 +170,7 @@ func (d *download) collectZipFiles() map[string][]byte {
 		}
 
 		data, err := io.ReadAll(rc)
-		rc.Close()
+		_ = rc.Close()
 		if err != nil {
 			utils.NewExitError().WithMessage("failed to read skill file from zip").WithReason(err).Done()
 		}
@@ -235,9 +237,9 @@ func (d *download) combineAndWrite(files map[string][]byte) {
 
 	for _, path := range paths {
 		content := files[path]
-		combinedContent.WriteString(fmt.Sprintf("\n\n<!-- BEGIN %s -->\n\n", path))
+		fmt.Fprintf(&combinedContent, "\n\n<!-- BEGIN %s -->\n\n", path)
 		combinedContent.Write(content)
-		combinedContent.WriteString(fmt.Sprintf("\n\n<!-- END %s -->\n", path))
+		fmt.Fprintf(&combinedContent, "\n\n<!-- END %s -->\n", path)
 	}
 
 	target := filepath.Join(d.directory, "AGENTS.md")
