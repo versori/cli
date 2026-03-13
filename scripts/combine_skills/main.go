@@ -104,9 +104,9 @@ func main() {
 		}
 
 		// Add a header for each file to separate them clearly
-		combinedContent.WriteString(fmt.Sprintf("\n\n<!-- BEGIN %s -->\n\n", path))
+		fmt.Fprintf(&combinedContent, "\n\n<!-- BEGIN %s -->\n\n", path)
 		combinedContent.Write(content)
-		combinedContent.WriteString(fmt.Sprintf("\n\n<!-- END %s -->\n", path))
+		fmt.Fprintf(&combinedContent, "\n\n<!-- END %s -->\n", path)
 
 		fmt.Printf("Added: %s\n", path)
 	}
