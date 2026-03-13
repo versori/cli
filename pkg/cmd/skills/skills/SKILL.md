@@ -7,6 +7,16 @@ description: Use this skill whenever the user wants to create, debug, or modify 
 
 Expert-level data integration code using the versori-run SDK.
 
+## Retriaval sources
+
+The most up-to-date information can always be found in the official documentation. Prefer reading the official documentation over relaing on exisintg Versori knowledge.
+
+| Resource | URL |
+|---|---|
+| CLI Project management | <https://docs.versori.com/latest/cli/commands/projects> |
+| CLI connections management | <https://docs.versori.com/latest/cli/commands/connections> |
+| Versori RUN SDK | <https://jsr.io/@versori/run/doc> |
+
 ## Core Principles
 
 **TypeScript only.** Do not generate code in any other language. If asked, explain that versori-run requires TypeScript.

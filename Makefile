@@ -51,3 +51,7 @@ versori-docs:
 .PHONY: combine-skills
 combine-skills:
 	go run scripts/combine_skills/main.go
+
+.PHONY: install-git-hooks
+install-git-hooks:
+	cp hooks/* .git/hooks/

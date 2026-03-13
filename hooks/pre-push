@@ -1,0 +1,28 @@
+#!/bin/sh
+
+echo "Running pre-push hook..."
+
+# Run make generate
+echo "Running make generate..."
+if ! make generate; then
+    echo "Error: make generate failed."
+    exit 1
+fi
+
+# Run make lint
+echo "Running make lint..."
+if ! make lint; then
+    echo "Error: make lint failed."
+    exit 1
+fi
+
+# Check if there are any uncommitted changes
+if [ -n "$(git status --porcelain)" ]; then
+    echo "Error: 'make generate' or 'make lint' caused changes to the working directory."
+    echo "Please commit these changes before pushing."
+    git status
+    exit 1
+fi
+
+echo "Pre-push checks passed."
+exit 0
