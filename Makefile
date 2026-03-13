@@ -47,3 +47,11 @@ build-all: # build binaries for all supported OSes (darwin, linux, windows)
 .PHONY: versori-docs
 versori-docs:
 	go run scripts/docs/main.go --prefix="" --out=../user-docs/latest/cli/commands --disable-md-ext
+
+.PHONY: combine-skills
+combine-skills:
+	go run scripts/combine_skills/main.go
+
+.PHONY: install-git-hooks
+install-git-hooks:
+	cp hooks/* .git/hooks/

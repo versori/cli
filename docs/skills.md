@@ -31,6 +31,7 @@ versori skills download [flags]
 
 
 **Flags:**
+* `--agent`: Combine skills into a single AGENTS.md file
 * `-d`, `--directory`: Directory to save the skills into. It will append the skill name to the directory.
 
 * `-h`, `--help`: help for download
