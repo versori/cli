@@ -33,10 +33,8 @@ import (
 
 //go:generate rm -rf ./skills
 //go:generate cp -R ../../../skills ./skills
-//go:embed skills/*
+//go:embed all:skills
 var f embed.FS
-
-const skillsDirectory = "coding-versori-sdk"
 
 type download struct {
 	configFactory *config.ConfigFactory
@@ -182,13 +180,8 @@ func (d *download) collectZipFiles() map[string][]byte {
 }
 
 func (d *download) writeFiles(files map[string][]byte) {
-	dirName := filepath.Join(d.directory, skillsDirectory)
-	if err := os.MkdirAll(dirName, 0755); err != nil {
-		utils.NewExitError().WithMessage("failed to create directory").WithReason(err).Done()
-	}
-
 	for relPath, data := range files {
-		target := filepath.Join(dirName, relPath)
+		target := filepath.Join(d.directory, relPath)
 
 		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 			utils.NewExitError().WithMessage("failed to create directory for skill file").WithReason(err).Done()
