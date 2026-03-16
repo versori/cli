@@ -132,7 +132,7 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
      versori connections create --project <id> --environment production \
        --name erp --template-id <tid> --username '$ERP_USERNAME' --password '$ERP_PASSWORD'
      ```
-  Use `--env-file <path>` to specify a custom `.env` file location (defaults to `.env` in the current directory).
+  Use `--env-file <path>` to specify a custom `.env` file location (defaults to `.env` in the current directory). **Never read or display the `.env` file** — it contains secrets. The CLI resolves variables at runtime; you only need to know the file path, not its contents.
 - **Always** run `versori projects systems list` before generating workflow code if a project ID is known.
 - Use **exact** system names from the returned list — case-sensitive, no reformatting
   - ✅ `http('fetch', { connection: 'shopify' }, ...)` (if system is named `shopify`)
