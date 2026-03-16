@@ -35,6 +35,8 @@ versori connections create --project <project-id> --environment <environment-nam
 * `--client-id`: OAuth2 client id for use with an oauth2 client connection
 * `--client-secret`: OAuth2 client secret for use with an oauth2 client connection
 
+* `--env-file`: Path to .env file for resolving $VARIABLE references in credential flags
+
 * `--environment`: The environment name within the project
 * `--external-id`: External ID of the end user for the connection, if not provided the connection will be created as a static connection
 

@@ -58,6 +58,18 @@ Create a connection for a system in a project. Run this after `versori projects 
 - `--base-url <url>` — Base URL for the connection
 - `--api-key <key>` — API key for authentication
 - `--username <user>` / `--password <pass>` — Basic auth credentials
+- `--client-id <id>` / `--client-secret <secret>` — OAuth2 client credentials
+- `--token-url <url>` — OAuth2 token URL
+- `--env-file <path>` — Path to `.env` file for resolving `$VARIABLE` references in credential flags (default: `.env`)
+
+**Variable references:** Credential flags accept `$VARIABLE` or `${VARIABLE}` syntax. The CLI resolves these from the `.env` file (or the process environment as fallback) at runtime, so the actual secret never appears in the command.
+
+```bash
+# Example: store secrets in .env, reference them in the command
+echo 'SHOPIFY_API_KEY=sk-12345...' >> .env
+versori connections create --project <id> --environment production \
+  --name shopify --template-id <tid> --api-key '$SHOPIFY_API_KEY'
+```
 
 **Always use `--bypass`** while connections are in active development. The `--template-id` value comes from the `versoru projects systems list` output.
 
