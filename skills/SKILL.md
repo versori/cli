@@ -107,12 +107,31 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 - After research, review the System & Authentication section for any systems that need user-specific configuration (e.g., shop domain, subdomain, instance URL). Ask the user for these values before proceeding. Then run `versori projects systems bootstrap --file <path> --project <id> --system-overrides '<json>'` (passing confirmed user-specific values via the overrides flag) to create systems, and run `versori projects systems list --project <id> --environment <env>` to verify what was created
 - **Before creating a connection**, run `versori connection list` to see existing connection names. Connection names must be unique — do not reuse a name that already exists.
 - After verifying systems, create connections for each system using `versori connections create --project <id> --environment <env> --name <system-name> --template-id <template-id> --bypass` (use `--bypass` while connections are in active development). The name passed in here doesn't matter and it should be suffixed with some random characters to avoid name conflcits when creating a bypass connections.
-- **When providing real credentials** (not `--bypass`), never pass literal secrets in commands. Instead, store secrets in a `.env` file and reference them with `'$VARIABLE_NAME'` (single-quoted to prevent shell expansion). The CLI resolves variable references at runtime. Example:
-  ```bash
-  # .env file contains: SHOPIFY_API_KEY=sk-12345...
-  versori connections create --project <id> --environment production \
-    --name shopify --template-id <tid> --api-key '$SHOPIFY_API_KEY'
-  ```
+- **When providing real credentials** (not `--bypass`), never pass literal secrets in commands. Instead, generate a `.env.example` file and have the user fill in a `.env` file. Follow this workflow:
+  1. **Inspect auth types:** After running `versori projects systems list`, look at each system's `AuthSchemeConfigs.Type` to determine required credentials.
+  2. **Map auth types to env vars** using these conventions (see `references/cli-usage.md` for the full mapping table):
+     - `api-key` → `<SYSTEM>_API_KEY`
+     - `basic-auth` → `<SYSTEM>_USERNAME`, `<SYSTEM>_PASSWORD`
+     - `oauth2` → `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` (ask the user about grant type and token URL if unclear)
+     - `none` → use `--bypass`, no credentials needed
+     Where `<SYSTEM>` is the system name uppercased with hyphens replaced by underscores (e.g. system `my-shop` → `MY_SHOP_API_KEY`).
+  3. **Generate `.env.example`:** Create a `.env.example` file listing every required variable with empty values and a comment per system:
+     ```
+     # shopify credentials (api-key)
+     SHOPIFY_API_KEY=
+
+     # erp credentials (basic-auth)
+     ERP_USERNAME=
+     ERP_PASSWORD=
+     ```
+  4. **Ask the user** to copy `.env.example` to `.env` and fill in the actual secret values: _"I've generated `.env.example` with the required variables. Copy it to `.env` and fill in your credentials, then let me know when you're ready."_
+  5. **Create connections** using single-quoted `'$VARIABLE'` references so the CLI resolves them from `.env` at runtime:
+     ```bash
+     versori connections create --project <id> --environment production \
+       --name shopify --template-id <tid> --api-key '$SHOPIFY_API_KEY'
+     versori connections create --project <id> --environment production \
+       --name erp --template-id <tid> --username '$ERP_USERNAME' --password '$ERP_PASSWORD'
+     ```
   Use `--env-file <path>` to specify a custom `.env` file location (defaults to `.env` in the current directory).
 - **Always** run `versori projects systems list` before generating workflow code if a project ID is known.
 - Use **exact** system names from the returned list — case-sensitive, no reformatting

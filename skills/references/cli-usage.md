@@ -64,9 +64,20 @@ Create a connection for a system in a project. Run this after `versori projects 
 
 **Variable references:** Credential flags accept `$VARIABLE` or `${VARIABLE}` syntax. The CLI resolves these from the `.env` file (or the process environment as fallback) at runtime, so the actual secret never appears in the command.
 
+**Auth-scheme-to-env-var mapping:** When generating `.env.example` files from `systems list` output, use the system's `AuthSchemeConfigs.Type` to determine which variables are needed. Uppercase the system name and replace hyphens with underscores for the variable prefix.
+
+| `AuthSchemeConfigs.Type` | Required env vars | `connections create` flags |
+|---|---|---|
+| `api-key` | `<SYSTEM>_API_KEY` | `--api-key '$<SYSTEM>_API_KEY'` |
+| `basic-auth` | `<SYSTEM>_USERNAME`, `<SYSTEM>_PASSWORD` | `--username '$<SYSTEM>_USERNAME' --password '$<SYSTEM>_PASSWORD'` |
+| `oauth2` | `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` | `--client-id '$<SYSTEM>_CLIENT_ID' --client-secret '$<SYSTEM>_CLIENT_SECRET'` |
+| `none` | _(none)_ | `--bypass` |
+
+For `oauth2`, also ask the user for the token URL and pass it via `--token-url`.
+
 ```bash
 # Example: store secrets in .env, reference them in the command
-echo 'SHOPIFY_API_KEY=sk-12345...' >> .env
+# .env file contains: SHOPIFY_API_KEY=sk-12345...
 versori connections create --project <id> --environment production \
   --name shopify --template-id <tid> --api-key '$SHOPIFY_API_KEY'
 ```
