@@ -112,7 +112,7 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
   2. **Map auth types to env vars** using these conventions (see `references/cli-usage.md` for the full mapping table):
      - `api-key` → `<SYSTEM>_API_KEY`
      - `basic-auth` → `<SYSTEM>_USERNAME`, `<SYSTEM>_PASSWORD`
-     - `oauth2` → `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` (ask the user about grant type and token URL if unclear)
+     - `oauth2` → `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` (read grant type and token URL from `systems list -o yaml` output)
      - `none` → use `--bypass`, no credentials needed
      Where `<SYSTEM>` is the system name uppercased with hyphens replaced by underscores (e.g. system `my-shop` → `MY_SHOP_API_KEY`).
   3. **Generate `.env.example`:** Create a `.env.example` file listing every required variable with empty values and a comment per system:

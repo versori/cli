@@ -73,7 +73,7 @@ Create a connection for a system in a project. Run this after `versori projects 
 | `oauth2` | `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` | `--client-id '$<SYSTEM>_CLIENT_ID' --client-secret '$<SYSTEM>_CLIENT_SECRET'` |
 | `none` | _(none)_ | `--bypass` |
 
-For `oauth2`, also ask the user for the token URL and pass it via `--token-url`.
+For `oauth2`, read the grant type and token URL from the `versori projects systems list -o yaml` output and pass the token URL via `--token-url`.
 
 ```bash
 # Example: store secrets in .env, reference them in the command
