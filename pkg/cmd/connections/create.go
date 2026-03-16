@@ -15,6 +15,7 @@ package connections
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,6 +27,7 @@ import (
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
 	"github.com/versori/cli/pkg/cmd/flags"
+	"github.com/versori/cli/pkg/envfile"
 	"github.com/versori/cli/pkg/ulid"
 	"github.com/versori/cli/pkg/utils"
 )
@@ -55,6 +57,7 @@ type create struct {
 	userExternalId       string
 	connectionName       string
 	baseUrl              string
+	envFile              string
 	fields               credentialFields
 }
 
@@ -67,7 +70,8 @@ func NewCreate(c *config.ConfigFactory) *cobra.Command {
 		Long: `Create a new connection to a connection template. If an end user's external ID is provided,
 The connection will be created as a dynamic connection for that end user, otherwise it will be created as a static connection.
 If a base URL is not provided, it will default to the system's base URL defined in the connection template.`,
-		Run: cr.Run,
+		PreRun: cr.resolveEnvVars,
+		Run:    cr.Run,
 	}
 
 	flags := cmd.Flags()
@@ -89,12 +93,72 @@ If a base URL is not provided, it will default to the system's base URL defined 
 	flags.StringVar(&cr.fields.clientSecret, "client-secret", "", "OAuth2 client secret for use with an oauth2 client connection")
 	flags.StringVar(&cr.fields.tokenUrl, "token-url", "", "OAuth2 token URL for use with an oauth2 client connection. Defaults to the token URL defined in the connection template.")
 
+	flags.StringVar(&cr.envFile, "env-file", ".env", "Path to .env file for resolving $VARIABLE references in credential flags")
+
 	_ = cmd.MarkFlagRequired("project")
 	_ = cmd.MarkFlagRequired("environment")
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("template-id")
 
 	return cmd
+}
+
+func (c *create) resolveEnvVars(cmd *cobra.Command, _ []string) {
+	var store *envfile.Store
+
+	if cmd.Flags().Changed("env-file") {
+		// Explicitly specified: error if missing
+		var err error
+		store, err = envfile.Load(c.envFile)
+		if err != nil {
+			utils.NewExitError().WithMessage("failed to load env file").WithReason(err).Done()
+		}
+	} else {
+		// Default .env: silently ignore if missing
+		var err error
+		store, err = envfile.Load(c.envFile)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				store = envfile.Empty()
+			} else {
+				// Try to detect "no such file" from godotenv which wraps os errors
+				if _, statErr := os.Stat(c.envFile); errors.Is(statErr, os.ErrNotExist) {
+					store = envfile.Empty()
+				} else {
+					utils.NewExitError().WithMessage("failed to load env file").WithReason(err).Done()
+				}
+			}
+		}
+	}
+
+	credFlags := []struct {
+		name string
+		ptr  *string
+	}{
+		{"api-key", &c.fields.apiKey},
+		{"username", &c.fields.username},
+		{"password", &c.fields.password},
+		{"client-id", &c.fields.clientID},
+		{"client-secret", &c.fields.clientSecret},
+		{"token-url", &c.fields.tokenUrl},
+	}
+
+	for _, cf := range credFlags {
+		if !cmd.Flags().Changed(cf.name) {
+			continue
+		}
+
+		resolved, err := store.Resolve(*cf.ptr)
+		if err != nil {
+			utils.NewExitError().WithMessage(fmt.Sprintf("failed to resolve --%s", cf.name)).WithReason(err).Done()
+		}
+
+		if resolved != *cf.ptr {
+			fmt.Printf("Resolved --%s from variable %s\n", cf.name, *cf.ptr)
+		}
+
+		*cf.ptr = resolved
+	}
 }
 
 func (c *create) Run(cmd *cobra.Command, _ []string) {

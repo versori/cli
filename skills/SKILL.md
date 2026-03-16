@@ -107,6 +107,13 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 - After research, review the System & Authentication section for any systems that need user-specific configuration (e.g., shop domain, subdomain, instance URL). Ask the user for these values before proceeding. Then run `versori projects systems bootstrap --file <path> --project <id> --system-overrides '<json>'` (passing confirmed user-specific values via the overrides flag) to create systems, and run `versori projects systems list --project <id> --environment <env>` to verify what was created
 - **Before creating a connection**, run `versori connection list` to see existing connection names. Connection names must be unique — do not reuse a name that already exists.
 - After verifying systems, create connections for each system using `versori connections create --project <id> --environment <env> --name <system-name> --template-id <template-id> --bypass` (use `--bypass` while connections are in active development). The name passed in here doesn't matter and it should be suffixed with some random characters to avoid name conflcits when creating a bypass connections.
+- **When providing real credentials** (not `--bypass`), never pass literal secrets in commands. Instead, store secrets in a `.env` file and reference them with `'$VARIABLE_NAME'` (single-quoted to prevent shell expansion). The CLI resolves variable references at runtime. Example:
+  ```bash
+  # .env file contains: SHOPIFY_API_KEY=sk-12345...
+  versori connections create --project <id> --environment production \
+    --name shopify --template-id <tid> --api-key '$SHOPIFY_API_KEY'
+  ```
+  Use `--env-file <path>` to specify a custom `.env` file location (defaults to `.env` in the current directory).
 - **Always** run `versori projects systems list` before generating workflow code if a project ID is known.
 - Use **exact** system names from the returned list — case-sensitive, no reformatting
   - ✅ `http('fetch', { connection: 'shopify' }, ...)` (if system is named `shopify`)
