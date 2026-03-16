@@ -1,0 +1,10 @@
+{
+  "name": "versori-skills",
+  "skills": "skills",
+  "description": "Skills for building data integrations using the Versori platform and versori-run SDK",
+  "version": "1.0.0",
+  "author": { "name": "Versori" },
+  "homepage": "https://versori.com",
+  "repository": "https://github.com/versori/cli",
+  "keywords": ["versori", "data-integration", "etl", "sdk", "typescript", "deno"]
+}

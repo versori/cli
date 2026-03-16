@@ -1,0 +1,16 @@
+{
+  "name": "versori-skills",
+  "owner": { "name": "Versori" },
+  "metadata": {
+    "description": "Skills for building data integrations using the Versori platform and versori-run SDK",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "versori-skills",
+      "source": ".",
+      "skills": "skills",
+      "description": "Expert-level data integration using the versori-run SDK"
+    }
+  ]
+}
