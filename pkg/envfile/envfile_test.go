@@ -1,3 +1,16 @@
+/*
+ * Copyright (c) 2026 Versori Group Inc
+ *
+ * Use of this software is governed by the Business Source License 1.1
+ * included in the LICENSE file at the root of this repository.
+ *
+ * Change Date: 2030-03-01
+ * Change License: Apache License, Version 2.0
+ *
+ * As of the Change Date, in accordance with the Business Source License,
+ * use of this software will be governed by the Apache License, Version 2.0.
+ */
+
 package envfile
 
 import (
@@ -132,13 +145,13 @@ func TestLoad_ValidFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 
 	_, err = tmp.WriteString("MY_KEY=hello\nMY_SECRET=world\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	tmp.Close()
+	_ = tmp.Close()
 
 	store, err := Load(tmp.Name())
 	if err != nil {
