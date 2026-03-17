@@ -49,3 +49,47 @@ make build
 ```
 
 The binary will be placed in `./bin/`.
+
+## Using Skills in AI Coding Tools
+
+This repo includes AI agent skills that help your AI coding tool write expert-level data integration code using the [versori-run](https://www.npmjs.com/package/@versori/run) SDK. The skills trigger when you ask your AI coding tool to build or debug ETL processes, API integrations, data transformation pipelines, webhooks, or any other data integration service.
+
+### Claude Code
+
+**Via the marketplace:**
+
+1. Add the Versori marketplace:
+   ```
+   /plugin marketplace add versori/cli
+   ```
+2. Install the skill:
+   ```
+   /plugin install versori-skills@versori-cli
+   ```
+
+You can also install from the terminal outside of Claude Code:
+```sh
+claude plugin install versori-skills@versori-cli
+```
+
+**Via the Versori CLI:**
+
+```sh
+versori skills download
+```
+
+### Other AI Coding Tools
+
+Use the Versori CLI to extract skills locally into your project:
+
+```sh
+versori skills download
+```
+
+To install skills globally (e.g. for Cursor):
+
+```sh
+versori skills download --directory ~/.cursor/skills/
+```
+
+> Use the `--agent` flag (e.g. `versori skills download --agent`) to combine all skills into a single `AGENTS.md` file.

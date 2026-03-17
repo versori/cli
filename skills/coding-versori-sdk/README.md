@@ -23,6 +23,6 @@ coding-versori-sdk/
 ├── SKILL.md                  # Core workflow patterns and critical rules
 └── references/
     ├── research-docs.md      # Research document structure and guidelines
-    ├── versori-sdk-usage.md  # Comprehensive guide on how ti use the versori/run SDK for implementing an integration
+    ├── sdk-guide.md          # Comprehensive guide on how to use the versori/run SDK for implementing an integration
     └── cli-usage.md          # CLI tools, environment variables, deployment safety
 ```
