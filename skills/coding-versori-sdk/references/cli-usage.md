@@ -53,13 +53,36 @@ Create a connection for a system in a project. Run this after `versori projects 
 
 **Optional flags:**
 
-- `--bypass` — Bypass connection validation (**use this for now** — connections are in active development)
+- `--bypass` — Skip credential validation (useful during development or when credentials aren't available yet)
 - `--external-id <id>` — External identifier ffor dynamic connections. This is the end user external ID. It should be left empty.
 - `--base-url <url>` — Base URL for the connection
 - `--api-key <key>` — API key for authentication
 - `--username <user>` / `--password <pass>` — Basic auth credentials
+- `--client-id <id>` / `--client-secret <secret>` — OAuth2 client credentials
+- `--token-url <url>` — OAuth2 token URL
+- `--env-file <path>` — Path to `.env` file for resolving `$VARIABLE` references in credential flags (default: `.env`)
 
-**Always use `--bypass`** while connections are in active development. The `--template-id` value comes from the `versoru projects systems list` output.
+**Variable references:** Credential flags accept `$VARIABLE` or `${VARIABLE}` syntax. The CLI resolves these from the `.env` file (or the process environment as fallback) at runtime, so the actual secret never appears in the command.
+
+**Auth-scheme-to-env-var mapping:** When generating `.env.example` files from `systems list` output, use the system's `AuthSchemeConfigs.Type` to determine which variables are needed. Uppercase the system name and replace hyphens with underscores for the variable prefix.
+
+| `AuthSchemeConfigs.Type` | Required env vars | `connections create` flags |
+|---|---|---|
+| `api-key` | `<SYSTEM>_API_KEY` | `--api-key '$<SYSTEM>_API_KEY'` |
+| `basic-auth` | `<SYSTEM>_USERNAME`, `<SYSTEM>_PASSWORD` | `--username '$<SYSTEM>_USERNAME' --password '$<SYSTEM>_PASSWORD'` |
+| `oauth2` | `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` | `--client-id '$<SYSTEM>_CLIENT_ID' --client-secret '$<SYSTEM>_CLIENT_SECRET'` |
+| `none` | _(none)_ | `--bypass` |
+
+For `oauth2`, read the grant type and token URL from the `versori projects systems list -o yaml` output and pass the token URL via `--token-url`.
+
+```bash
+# Example: store secrets in .env, reference them in the command
+# .env file contains: SHOPIFY_API_KEY=sk-12345...
+versori connections create --project <id> --environment production \
+  --name shopify --template-id <tid> --api-key '$SHOPIFY_API_KEY'
+```
+
+**Default to real credentials.** Generate a `.env.example`, have the user fill in `.env`, and use variable references. Offer `--bypass` as a fallback if the user prefers to skip credentials. The `--template-id` value comes from the `versori projects systems list` output.
 
 ### `versori projects versions list --project <id>`
 
@@ -174,9 +197,11 @@ versori projects systems list --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment
 # 5. Upload the research document as a project asset
 versori projects assets upload --file versori-research/research.md --project 01KH6HD9QNAT57MGEPYG4CY9J5
 
-# 6. Create connections for each system (use --bypass while connections are in active development)
-versori connections create --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --name shopify --template-id abc123 --bypass
-versori connections create --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --name postgres --template-id def456 --bypass
+# 6. Create connections for each system (credentials-first; --bypass available as fallback)
+#    Inspect auth types from systems list, generate .env.example, have user fill .env,
+#    then create connections with variable references:
+versori connections create --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --name shopify --template-id abc123 --api-key '$SHOPIFY_API_KEY'
+versori connections create --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --name postgres --template-id def456 --username '$POSTGRES_USERNAME' --password '$POSTGRES_PASSWORD'
 
 # 7. List existing versions to determine the next version number
 versori projects versions list --project 01KH6HD9QNAT57MGEPYG4CY9J5
@@ -208,7 +233,7 @@ versori project sync --directory shopify-sync/01KH6HD9QNAT57MGEPYG4CY9J5 --proje
 # 4. Download existing research/context assets
 versori projects assets download --asset research.md --project 01KH6HD9QNAT57MGEPYG4CY9J5
 
-# 5. List systems, create connections (with --bypass) if needed, edit code, list versions to pick next version number, then deploy
+# 5. List systems, create connections (with real credentials, or --bypass if preferred) if needed, edit code, list versions to pick next version number, then deploy
 versori projects versions list --project 01KH6HD9QNAT57MGEPYG4CY9J5
 # → version 3, version 2, version 1 → use version 4
 
@@ -296,10 +321,14 @@ User: "Pull down the research for project 01KH6HD..."
 ```
 User: "Systems are bootstrapped for project 01KH6HD..., now set up connections"
 1. Run: versori projects systems list --project 01KH6HD... --environment production
-   → shopify (template-id: abc123), postgres (template-id: def456)
-2. Run: versori connections create --project 01KH6HD... --environment production --name shopify --template-id abc123 --bypass
-3. Run: versori connections create --project 01KH6HD... --environment production --name postgres --template-id def456 --bypass
-4. "Created connections for shopify and postgres (with --bypass). Ready to generate workflow code?"
+   → shopify (template-id: abc123, auth: api-key), postgres (template-id: def456, auth: basic-auth)
+2. Generate .env.example with required variables (SHOPIFY_API_KEY, POSTGRES_USERNAME, POSTGRES_PASSWORD)
+3. Ask user to copy .env.example to .env and fill in credentials
+   → "I've generated .env.example with the required variables. Copy it to .env and fill in your credentials, then let me know when you're ready. Or if you'd prefer to skip credentials for now, I can create bypass connections instead."
+4. Once user confirms .env is ready:
+   Run: versori connections create --project 01KH6HD... --environment production --name shopify --template-id abc123 --api-key '$SHOPIFY_API_KEY'
+   Run: versori connections create --project 01KH6HD... --environment production --name postgres --template-id def456 --username '$POSTGRES_USERNAME' --password '$POSTGRES_PASSWORD'
+5. "Created connections for shopify and postgres with real credentials. Ready to generate workflow code?"
 ```
 
 **Check systems before writing code:**
