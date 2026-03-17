@@ -32,17 +32,19 @@ const (
 
 // edit implements `versori projects edit`.
 type edit struct {
-	configFactory       *config.ConfigFactory
-	projectId           flags.ProjectId
-	environmentName     string
-	resourceMemoryReq   string
-	resourceMemoryLimit string
-	resourceCpuReq      string
-	resourceCpuLimit    string
-	replicas            int
-	maxReplicas         int
-	serviceAccount      string
-	staticIP            string
+	configFactory         *config.ConfigFactory
+	projectId             flags.ProjectId
+	environmentName       string
+	resourceMemoryReq     string
+	resourceMemoryLimit   string
+	resourceCpuReq        string
+	resourceCpuLimit      string
+	ephemeralStorageReq   string
+	ephemeralStorageLimit string
+	replicas              int
+	maxReplicas           int
+	serviceAccount        string
+	staticIP              string
 }
 
 // NewEdit returns the cobra command for editing a project environment configuration.
@@ -63,6 +65,8 @@ func NewEdit(c *config.ConfigFactory) *cobra.Command {
 	flags.StringVar(&e.resourceMemoryLimit, "resource.memory.limits", "", "Memory limits (e.g., 500Mi)")
 	flags.StringVar(&e.resourceCpuReq, "resource.cpu.requests", "", "CPU requests (e.g., 100m)")
 	flags.StringVar(&e.resourceCpuLimit, "resource.cpu.limits", "", "CPU limits (e.g., 500m)")
+	flags.StringVar(&e.ephemeralStorageReq, "resource.storage.requests", "", "Ephemeral storage requests (e.g., 1Gi)")
+	flags.StringVar(&e.ephemeralStorageLimit, "resource.storage.limits", "", "Ephemeral storage limits (e.g., 1Gi)")
 	flags.IntVar(&e.replicas, "replicas", 0, "Number of replicas")
 	flags.IntVar(&e.maxReplicas, "max-replicas", 0, "Maximum number of replicas. Setting this option enables autoscaling on the project")
 	flags.StringVar(&e.serviceAccount, "service-account", "", "Service account to use for the environment. Pass an empty string to remove the service account")
@@ -81,13 +85,8 @@ func (e *edit) Run(cmd *cobra.Command, args []string) {
 		utils.NewExitError().WithMessage("--static-ip must be either 'enabled' or 'disabled'").Done()
 	}
 
-	// Check if any flags are provided
-	hasResourceFlags := e.resourceMemoryReq != "" || e.resourceMemoryLimit != "" ||
-		e.resourceCpuReq != "" || e.resourceCpuLimit != ""
-
 	serviceAccountChanged := cmd.Flags().Changed("service-account")
-
-	if !hasResourceFlags && e.replicas <= 0 && e.maxReplicas <= 0 && e.staticIP == "" && !serviceAccountChanged {
+	if !e.hasChanges(cmd) {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "nothing to do")
 
 		return
@@ -135,6 +134,21 @@ func (e *edit) Run(cmd *cobra.Command, args []string) {
 	}
 
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "environment configuration updated successfully")
+}
+
+func (e *edit) hasChanges(cmd *cobra.Command) bool {
+	hasResourceChanges := e.hasResourceChanges()
+	hasReplicaChanges := e.replicas > 0 || e.maxReplicas > 0
+	hasStaticIPChange := e.staticIP != ""
+	hasServiceAccountChange := cmd.Flags().Changed("service-account")
+
+	return hasResourceChanges || hasReplicaChanges || hasStaticIPChange || hasServiceAccountChange
+}
+
+func (e *edit) hasResourceChanges() bool {
+	return e.resourceMemoryReq != "" || e.resourceMemoryLimit != "" ||
+		e.resourceCpuReq != "" || e.resourceCpuLimit != "" ||
+		e.ephemeralStorageReq != "" || e.ephemeralStorageLimit != ""
 }
 
 func (e *edit) buildPayload(currentConfig v1.EnvironmentConfig, serviceAccountChanged bool) v1.EnvironmentConfig {
@@ -190,6 +204,9 @@ func (e *edit) buildPayload(currentConfig v1.EnvironmentConfig, serviceAccountCh
 		if e.resourceMemoryLimit != "" {
 			payload.DeploymentSpec.Resources.Limits.Memory = &e.resourceMemoryLimit
 		}
+		if e.ephemeralStorageLimit != "" {
+			payload.DeploymentSpec.Resources.Limits.Storage = &e.ephemeralStorageLimit
+		}
 	}
 
 	// Ensure requests exists if we're setting any request
@@ -203,6 +220,9 @@ func (e *edit) buildPayload(currentConfig v1.EnvironmentConfig, serviceAccountCh
 		}
 		if e.resourceMemoryReq != "" {
 			payload.DeploymentSpec.Resources.Requests.Memory = &e.resourceMemoryReq
+		}
+		if e.ephemeralStorageReq != "" {
+			payload.DeploymentSpec.Resources.Requests.Storage = &e.ephemeralStorageReq
 		}
 	}
 
