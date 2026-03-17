@@ -1,0 +1,16 @@
+{
+  "name": "versori-cli",
+  "owner": {
+    "name": "Versori"
+  },
+  "metadata": {
+    "description": "Skills for building data integrations using the Versori platform"
+  },
+  "plugins": [
+    {
+      "name": "versori-skills",
+      "source": "./",
+      "description": "Skills for building data integrations using the Versori platform and versori-run SDK"
+    }
+  ]
+}
