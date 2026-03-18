@@ -203,17 +203,21 @@ versori projects assets upload --file versori-research/research.md --project 01K
 versori connections create --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --name shopify --template-id abc123 --api-key '$SHOPIFY_API_KEY'
 versori connections create --project 01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --name postgres --template-id def456 --username '$POSTGRES_USERNAME' --password '$POSTGRES_PASSWORD'
 
-# 7. List existing versions to determine the next version number
+# 7. Ensure .gitignore exists (create with recommended content if missing)
+#    This prevents node_modules/, dist/, .env from being deployed
+#    See "Recommended .gitignore" section above for content
+
+# 8. List existing versions to determine the next version number
 versori projects versions list --project 01KH6HD9QNAT57MGEPYG4CY9J5
 # → (no versions yet — use version 1)
 
-# 8. Verify code validity locally
+# 9. Verify code validity locally
 deno install
 deno check src/index.ts
 # Run tests if applicable
 deno test
 
-# 9. After writing code, verifying it, and confirming with user, deploy
+# 10. After writing code, verifying it, and confirming with user, deploy
 versori project deploy -d . --project=01KH6HD9QNAT57MGEPYG4CY9J5 --environment production --version 1
 ```
 
@@ -229,6 +233,10 @@ versori project sync --directory shopify-sync/01KH6HD9QNAT57MGEPYG4CY9J5 --proje
 
 # 3. On confirmation, sync for real file and the projects assets if there are any
 versori project sync --directory shopify-sync/01KH6HD9QNAT57MGEPYG4CY9J5 --project 01KH6HD9QNAT57MGEPYG4CY9J5 --assets
+
+# 3.5. Ensure .gitignore exists (create with recommended content if missing)
+#      This prevents node_modules/, dist/, .env from being deployed
+#      See "Recommended .gitignore" section above for content
 
 # 4. Download existing research/context assets
 versori projects assets download --asset research.md --project 01KH6HD9QNAT57MGEPYG4CY9J5
