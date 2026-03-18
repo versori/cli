@@ -66,7 +66,7 @@ func (e *ExitError) Code() int {
 	return e.ExitCode
 }
 
-// CheckError handles the error nad calls os.Exit
+// CheckError handles the error and calls os.Exit
 // If the error is not an ExitError, it is printed to stderr and the application exits with code 1
 // If the error is an APIError, it is converted to an ExitError and handled as such
 // If the error is nil, nothing happens

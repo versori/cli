@@ -34,6 +34,7 @@ func NewSystemsCommand(c *config.ConfigFactory) *cobra.Command {
 	deleteTemplate := systems.NewDeleteConnectionTemplate(c)
 	updateTemplate := systems.NewUpdateConnectionTemplate(c)
 	listConnections := systems.NewListConnections(c)
+	connect := systems.NewSystemsConnect(c)
 
 	cmd.AddCommand(add)
 	cmd.AddCommand(bootstrap)
@@ -42,6 +43,7 @@ func NewSystemsCommand(c *config.ConfigFactory) *cobra.Command {
 	cmd.AddCommand(deleteTemplate)
 	cmd.AddCommand(updateTemplate)
 	cmd.AddCommand(listConnections)
+	cmd.AddCommand(connect)
 
 	return cmd
 }

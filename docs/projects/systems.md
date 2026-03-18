@@ -11,6 +11,7 @@ description: "Manage systems within a project"
 |---|---|
 | `add` | Link a system to a project (create a connection template) |
 | `bootstrap` | Create systems from research context |
+| `connect` | Connect to a system |
 | `delete-connection-template` | Delete a connection template from a project |
 | `list-connections` | List static connections for a project environment |
 | `list` | List systems linked to a project |
@@ -59,6 +60,28 @@ versori projects systems bootstrap --file <path> [flags]
 
 * `--system-overrides`: JSON object of per-system overrides (e.g. '{"Stripe": {"base_url": "..."}}')
 
+
+
+
+---
+
+### `versori projects systems connect`
+
+
+
+
+```sh
+versori projects systems connect --project <project-id> --system <system-id> [flags]
+```
+
+
+**Flags:**
+* `--connection-id`: ID of the connection to connect to
+* `--environment`: The environment name within the project
+* `-h`, `--help`: help for connect
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
+* `--template-id`: ID of the connection template to connect to
 
 
 
