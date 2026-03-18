@@ -148,6 +148,8 @@ See `references/cli-usage.md` for all commands, options, deployment safety guide
 
 **Always dry-run before syncing** — `sync` deletes local files not present in the platform. Show the user the diff and confirm before running for real.
 
+**Always ensure a `.gitignore` exists** — After syncing a project or setting up a new project directory, check if a `.gitignore` file exists. If it doesn't, create one with the recommended content from `references/cli-usage.md` before installing dependencies or deploying. This prevents `node_modules/`, `dist/`, and other local artifacts from being pushed to the platform.
+
 **Always verify code locally before deploying** — Before running a deploy command, you MUST ensure the code is valid by running `deno install` followed by `deno check src/index.ts` (or `deno lint`). Fix any type errors or linting issues before attempting to deploy. If `deno` is not available skill local validation.
 
 **Write tests for pure functions** — Whenever you extract logic into pure functions (e.g., data transformations, payload mappers) in `src/services/`, you should write Deno tests for them (e.g., `src/services/mapper.test.ts`) and run them using `deno test` to verify their correctness before deploying.
