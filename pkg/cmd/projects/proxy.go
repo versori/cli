@@ -34,9 +34,12 @@ type proxy struct {
 	configFactory *config.ConfigFactory
 	projectId     flags.ProjectId
 	method        string
+	request       string
 	headers       []string
 	queryParams   []string
 	body          string
+	data          string
+	user          string
 	urlPath       string
 	env           string
 }
@@ -74,9 +77,12 @@ the file extension unless explicitly provided via --header.`,
 	p.projectId.SetFlag(f)
 
 	f.StringVarP(&p.method, "method", "m", "POST", "HTTP method (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)")
+	f.StringVarP(&p.request, "request", "X", "", "HTTP method (alias for --method)")
 	f.StringArrayVarP(&p.headers, "header", "H", nil, "HTTP headers as key:value pairs (repeatable)")
 	f.StringArrayVarP(&p.queryParams, "query", "q", nil, "Query parameters as key:value pairs (repeatable)")
 	f.StringVarP(&p.body, "body", "b", "", "Request body (string or @filename to read from file)")
+	f.StringVarP(&p.data, "data", "d", "", "HTTP POST data (alias for --body)")
+	f.StringVarP(&p.user, "user", "u", "", "Server user and password (e.g. user:password)")
 	f.StringVar(&p.urlPath, "path", "", "URL path to call on the integration (required)")
 	f.StringVar(&p.env, "environment", "", "Project environment name (e.g. production, staging)")
 
@@ -96,9 +102,19 @@ func (p *proxy) Run(cmd *cobra.Command, args []string) {
 	reqHeaders := parseKeyValuePairs(p.headers, "header")
 	reqQuery := parseKeyValuePairs(p.queryParams, "query")
 
+	if p.user != "" {
+		auth := base64.StdEncoding.EncodeToString([]byte(p.user))
+		reqHeaders["Authorization"] = []string{"Basic " + auth}
+	}
+
+	actualBody := p.body
+	if p.data != "" {
+		actualBody = p.data
+	}
+
 	var bodyB64 string
-	if p.body != "" {
-		bodyBytes, contentType := resolveBody(p.body)
+	if actualBody != "" {
+		bodyBytes, contentType := resolveBody(actualBody)
 
 		bodyB64 = base64.StdEncoding.EncodeToString(bodyBytes)
 		if contentType != "" {
@@ -108,9 +124,28 @@ func (p *proxy) Run(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	actualMethod := strings.ToUpper(p.method)
+	if p.request != "" {
+		actualMethod = strings.ToUpper(p.request)
+	}
+	
+	validMethods := map[string]bool{
+		http.MethodGet:     true,
+		http.MethodPost:    true,
+		http.MethodPut:     true,
+		http.MethodPatch:   true,
+		http.MethodDelete:  true,
+		http.MethodHead:    true,
+		http.MethodOptions: true,
+	}
+	
+	if !validMethods[actualMethod] {
+		utils.NewExitError().WithMessage("invalid HTTP method: " + actualMethod).Done()
+	}
+
 	payload := callIntegrationRequest{
 		URLPath: p.urlPath,
-		Method:  strings.ToUpper(p.method),
+		Method:  actualMethod,
 		Headers: reqHeaders,
 		Query:   reqQuery,
 		Body:    bodyB64,
