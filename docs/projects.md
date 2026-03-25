@@ -198,6 +198,7 @@ versori projects proxy --path <path> [flags]
 
 **Flags:**
 * `-b`, `--body`: Request body (string or @filename to read from file)
+* `-d`, `--data`: HTTP POST data (alias for --body)
 * `--environment`: Project environment name (e.g. production, staging)
 * `-H`, `--header`: HTTP headers as key:value pairs (repeatable)
 * `-h`, `--help`: help for proxy
@@ -206,6 +207,8 @@ versori projects proxy --path <path> [flags]
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
 * `-q`, `--query`: Query parameters as key:value pairs (repeatable)
+* `-X`, `--request`: HTTP method (alias for --method)
+* `-u`, `--user`: Server user and password (e.g. user:password)
 
 
 
