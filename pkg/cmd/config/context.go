@@ -17,4 +17,5 @@ type Context struct {
 	Name           string `yaml:"name"`
 	OrganisationId string `yaml:"organisation_id"`
 	JWT            string `yaml:"jwt"`
+	URLOverwrite   string `yaml:"url_overwrite"`
 }

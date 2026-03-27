@@ -162,6 +162,8 @@ const handleWebhook = webhook('incoming-data', {
   );
 ```
 
+The endpoint will be `<project url>/incoming-data`. Webhook URLs are constructed using the wenhook name as the path param in the request. 
+
 ### HTTP Task with Authenticated Connection
 
 The `http` task sends requests through a named connection. The connection provides automatic authentication via credentials configured in the Versori platform — connection names are set outside the code.

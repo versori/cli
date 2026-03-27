@@ -124,6 +124,13 @@ func (c *ConfigFactory) contextOrDie() {
 func (c *ConfigFactory) loadContext() {
 	c.contextOrDie()
 
+	// this is used to help us test the CLI on local dev and stage
+	if c.Context.URLOverwrite != "" {
+		c.versoriClient = utils.NewHTTPBuilder(c.Context.URLOverwrite)
+
+		return
+	}
+
 	c.versoriClient = utils.NewHTTPBuilder(apiBaseURL)
 }
 
