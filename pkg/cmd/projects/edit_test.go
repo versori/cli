@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	v1 "github.com/versori/cli/pkg/api/v1"
 )
 
 func TestEditHasResourceChanges(t *testing.T) {
@@ -71,4 +72,25 @@ func TestEditHasChanges(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEditBuildPayloadEphemeralStorageOnly(t *testing.T) {
+	t.Run("requests only", func(t *testing.T) {
+		e := &edit{ephemeralStorageReq: "1Gi"}
+		current := v1.EnvironmentConfig{DeploymentSpec: &v1.DeploymentSpec{}}
+		got := e.buildPayload(current, false)
+		if got.DeploymentSpec.Resources.Requests == nil || got.DeploymentSpec.Resources.Requests.Storage == nil ||
+			*got.DeploymentSpec.Resources.Requests.Storage != "1Gi" {
+			t.Fatalf("requests.storage = %#v", got.DeploymentSpec.Resources.Requests)
+		}
+	})
+	t.Run("limits only", func(t *testing.T) {
+		e := &edit{ephemeralStorageLimit: "2Gi"}
+		current := v1.EnvironmentConfig{DeploymentSpec: &v1.DeploymentSpec{}}
+		got := e.buildPayload(current, false)
+		if got.DeploymentSpec.Resources.Limits == nil || got.DeploymentSpec.Resources.Limits.Storage == nil ||
+			*got.DeploymentSpec.Resources.Limits.Storage != "2Gi" {
+			t.Fatalf("limits.storage = %#v", got.DeploymentSpec.Resources.Limits)
+		}
+	})
 }
