@@ -193,7 +193,7 @@ func (e *edit) buildPayload(currentConfig v1.EnvironmentConfig, serviceAccountCh
 	}
 
 	// Ensure limits exists if we're setting any limit
-	if e.resourceCpuLimit != "" || e.resourceMemoryLimit != "" {
+	if e.resourceCpuLimit != "" || e.resourceMemoryLimit != "" || e.ephemeralStorageLimit != "" {
 		if payload.DeploymentSpec.Resources.Limits == nil {
 			payload.DeploymentSpec.Resources.Limits = &v1.ResourceRequirements{}
 		}
@@ -210,7 +210,7 @@ func (e *edit) buildPayload(currentConfig v1.EnvironmentConfig, serviceAccountCh
 	}
 
 	// Ensure requests exists if we're setting any request
-	if e.resourceCpuReq != "" || e.resourceMemoryReq != "" {
+	if e.resourceCpuReq != "" || e.resourceMemoryReq != "" || e.ephemeralStorageReq != "" {
 		if payload.DeploymentSpec.Resources.Requests == nil {
 			payload.DeploymentSpec.Resources.Requests = &v1.ResourceRequirements{}
 		}
