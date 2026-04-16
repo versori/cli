@@ -133,6 +133,7 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
      ```
   Use `--env-file <path>` to specify a custom `.env` file location (defaults to `.env` in the current directory). **Never read or display the `.env` file** — it contains secrets. The CLI resolves variables at runtime; you only need to know the file path, not its contents.
 - **If the user chooses bypass:** use `--bypass` and suffix the connection name with random characters to avoid name conflicts. This is a fallback for when credentials aren't available yet.
+- **`--bypass` is mutually exclusive with credential flags.** Never combine `--bypass` with `--api-key`, `--username`/`--password`, or `--client-id`/`--client-secret`. When `--bypass` is passed, all credential flags are silently ignored and the connection is created with no authentication. Use `--bypass` only when the auth scheme type is `none` or the user explicitly wants to skip credentials entirely.
 - **Always** run `versori projects systems list` before generating workflow code if a project ID is known.
 - Use **exact** system names from the returned list — case-sensitive, no reformatting
   - ✅ `http('fetch', { connection: 'shopify' }, ...)` (if system is named `shopify`)
