@@ -53,7 +53,7 @@ Create a connection for a system in a project. Run this after `versori projects 
 
 **Optional flags:**
 
-- `--bypass` — Skip credential validation (useful during development or when credentials aren't available yet)
+- `--bypass` — Create a no-auth connection. **Mutually exclusive with credential flags** (`--api-key`, `--username`/`--password`, `--client-id`/`--client-secret`). When passed, all credential flags are silently ignored and the connection is created with no authentication. Only use when the auth scheme type is `none` or the user explicitly wants to skip credentials.
 - `--external-id <id>` — External identifier ffor dynamic connections. This is the end user external ID. It should be left empty.
 - `--base-url <url>` — Base URL for the connection
 - `--api-key <key>` — API key for authentication
@@ -71,7 +71,7 @@ Create a connection for a system in a project. Run this after `versori projects 
 | `api-key` | `<SYSTEM>_API_KEY` | `--api-key '$<SYSTEM>_API_KEY'` |
 | `basic-auth` | `<SYSTEM>_USERNAME`, `<SYSTEM>_PASSWORD` | `--username '$<SYSTEM>_USERNAME' --password '$<SYSTEM>_PASSWORD'` |
 | `oauth2` | `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` | `--client-id '$<SYSTEM>_CLIENT_ID' --client-secret '$<SYSTEM>_CLIENT_SECRET'` |
-| `none` | _(none)_ | `--bypass` |
+| `none` | _(none)_ | `--bypass` (only valid for `none` auth type — do not combine with credential flags) |
 
 For `oauth2`, read the grant type and token URL from the `versori projects systems list -o yaml` output and pass the token URL via `--token-url`.
 
