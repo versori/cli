@@ -140,6 +140,30 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
   - ❌ `http('fetch', { connection: 'Shopify' }, ...)`
 - If a required system is **still missing after bootstrap**, stop and tell the user which systems are missing before writing any code. Ask for the name of their org, then give them the direct link `https://ai.versori.com/integrations/<project-id>?org=<org>` to add the missing systems. Proceed once they confirm.
 
+### Effective Base URLs (the `/api` strip)
+
+The Versori runtime strips a trailing `/api` segment from every system's
+configured base URL before concatenating it with your `fetch()` path. This is a
+platform-wide behaviour, not a template bug, and it is why `templateBaseUrl`
+in `versori projects systems list -o yaml` often looks "shorter" than the URL
+you see in the API docs or in the `versori projects systems bootstrap` summary
+output.
+
+Practical consequence: if a system's REST endpoints live at
+`https://host/api/foo`, the path you pass to `fetch()` must **include** the
+`/api/` segment yourself.
+
+Known examples:
+- Slack: `fetch('/api/chat.postMessage', ...)` — not `/chat.postMessage`.
+- Any template whose documented base ends in `/api/`.
+
+Before writing `fetch()` paths for a new system:
+
+1. Run `versori projects systems list -o yaml` and read `templateBaseUrl`.
+2. Compare it to the API's documented base URL.
+3. If the documented base ends in `/api/` and `templateBaseUrl` does not,
+   every `fetch()` path you write for that system must start with `/api/`.
+
 ## CLI Commands
 
 Use the `versori` CLI when the user wants to list projects, create projects, pull down existing code, switch contexts, bootstrap systems, create connections, manage project assets, or deploy.
