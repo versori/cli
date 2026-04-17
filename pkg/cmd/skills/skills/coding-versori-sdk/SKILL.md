@@ -180,6 +180,41 @@ This indirection is deliberate: you can swap the underlying connection —
 rotate credentials, migrate from bypass to OAuth, move between environments —
 without editing any workflow code.
 
+## Configuration & Variables
+
+Versori has three distinct mechanisms for non-code configuration. Do not
+conflate them:
+
+| Mechanism | Scope | When it resolves | Set via | Read from workflow via |
+|---|---|---|---|---|
+| `.env` file (`$FOO` refs) | Local CLI only | CLI-time | `.env` in project dir | **Not accessible at runtime** |
+| Activation variable | Per-activation | Runtime | Versori UI → Project → Activations → Variables | `ctx.activation.getVariable('foo')` |
+| KV store | Project / org / execution | Runtime | `ctx.openKv(...).set(...)` | `ctx.openKv(...).get(...)` |
+
+Rules:
+
+1. **`.env` values are not available at runtime.** They exist solely so
+   `versori connections create` can inject secrets via `$VARIABLE` references.
+   Never call `Deno.env.get(...)` / `process.env.X` in workflow code expecting
+   to pick up a `.env` value — it will be `undefined` in the deployed runtime.
+2. **Anything that might vary per tenant, per environment, or per deploy
+   should be an activation variable.** Hard-code a sensible fallback for
+   local development, but read the activation variable first. Example:
+
+   ```typescript
+   const channel =
+     (ctx.activation.getVariable('slackChannelId') as string | undefined) ??
+     '#general';
+   ```
+
+3. **Use KV for workflow-produced state** (cursors, dedupe keys, batch
+   progress), not for configuration.
+4. **Document every activation variable** your workflow reads in a
+   comment at the top of the file, including expected type and default. This
+   is the contract between the code and whoever configures the project.
+5. **Activation variables take effect immediately — no redeploy needed.**
+   Mention this when an operator asks "do I need to redeploy to change X?".
+
 ## CLI Commands
 
 Use the `versori` CLI when the user wants to list projects, create projects, pull down existing code, switch contexts, bootstrap systems, create connections, manage project assets, or deploy.
