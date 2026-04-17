@@ -54,6 +54,16 @@ Create a connection for a system in a project. Run this after `versori projects 
 **Optional flags:**
 
 - `--bypass` — Create a no-auth connection. **Mutually exclusive with credential flags** (`--api-key`, `--username`/`--password`, `--client-id`/`--client-secret`). When passed, all credential flags are silently ignored and the connection is created with no authentication. Only use when the auth scheme type is `none` or the user explicitly wants to skip credentials.
+
+**OAuth2 `authorization_code` grants cannot be completed from the CLI.** If
+the auth scheme in `versori projects systems list -o yaml` shows
+`grant.type: authorizationCode`, do not run `versori connections create` for
+that system — the command will hang waiting on a redirect the CLI can't
+drive. Instead, direct the user to the project in the Versori UI
+(`https://ai.versori.com/integrations/<project-id>?org=<org>`) and have them
+authorize the system there. Client-credentials (`clientCredentials`) grants
+are fine to create from the CLI.
+
 - `--external-id <id>` — External identifier ffor dynamic connections. This is the end user external ID. It should be left empty.
 - `--base-url <url>` — Base URL for the connection
 - `--api-key <key>` — API key for authentication
@@ -70,10 +80,11 @@ Create a connection for a system in a project. Run this after `versori projects 
 |---|---|---|
 | `api-key` | `<SYSTEM>_API_KEY` | `--api-key '$<SYSTEM>_API_KEY'` |
 | `basic-auth` | `<SYSTEM>_USERNAME`, `<SYSTEM>_PASSWORD` | `--username '$<SYSTEM>_USERNAME' --password '$<SYSTEM>_PASSWORD'` |
-| `oauth2` | `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` | `--client-id '$<SYSTEM>_CLIENT_ID' --client-secret '$<SYSTEM>_CLIENT_SECRET'` |
+| `oauth2` (`authorization_code` grant) | _(none — use UI)_ | **Do not run `versori connections create`**; create the connection from the Versori UI instead. The CLI cannot complete the browser redirect and the command will hang. |
+| `oauth2` (`client_credentials` grant) | `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` | `--client-id '$<SYSTEM>_CLIENT_ID' --client-secret '$<SYSTEM>_CLIENT_SECRET'` |
 | `none` | _(none)_ | `--bypass` (only valid for `none` auth type — do not combine with credential flags) |
 
-For `oauth2`, read the grant type and token URL from the `versori projects systems list -o yaml` output and pass the token URL via `--token-url`.
+For `oauth2` with the `client_credentials` grant, read the token URL from the `versori projects systems list -o yaml` output and pass it via `--token-url`. For `oauth2` with the `authorization_code` grant, stop and direct the user to the Versori UI — see the note under `--bypass` above.
 
 ```bash
 # Example: store secrets in .env, reference them in the command
@@ -127,7 +138,10 @@ production.env
 .git/
 .vscode/
 .cursor/
+.gitignore
 ```
+
+`.gitignore` ignores itself on purpose. Without this entry, `versori project sync` deletes the local `.gitignore` (it is not uploaded to the platform), which then exposes `.cursor/` and friends to being deleted on subsequent syncs.
 
 ## Environment Variables
 

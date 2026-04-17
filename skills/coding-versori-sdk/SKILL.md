@@ -111,7 +111,8 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
   2. **Map auth types to env vars** using these conventions (see `references/cli-usage.md` for the full mapping table):
      - `api-key` → `<SYSTEM>_API_KEY`
      - `basic-auth` → `<SYSTEM>_USERNAME`, `<SYSTEM>_PASSWORD`
-     - `oauth2` → `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` (read grant type and token URL from `systems list -o yaml` output)
+     - `oauth2` (authorization_code grant) → **create via Versori UI, not CLI**; the CLI cannot complete the browser redirect
+     - `oauth2` (client_credentials grant) → `<SYSTEM>_CLIENT_ID`, `<SYSTEM>_CLIENT_SECRET` (read grant type and token URL from `systems list -o yaml` output)
      - `none` → use `--bypass` automatically, no credentials needed
      Where `<SYSTEM>` is the system name uppercased with hyphens replaced by underscores (e.g. system `my-shop` → `MY_SHOP_API_KEY`).
   3. **Generate `.env.example`:** Create a `.env.example` file listing every required variable with empty values and a comment per system:
@@ -135,10 +136,85 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 - **If the user chooses bypass:** use `--bypass` and suffix the connection name with random characters to avoid name conflicts. This is a fallback for when credentials aren't available yet.
 - **`--bypass` is mutually exclusive with credential flags.** Never combine `--bypass` with `--api-key`, `--username`/`--password`, or `--client-id`/`--client-secret`. When `--bypass` is passed, all credential flags are silently ignored and the connection is created with no authentication. Use `--bypass` only when the auth scheme type is `none` or the user explicitly wants to skip credentials entirely.
 - **Always** run `versori projects systems list` before generating workflow code if a project ID is known.
-- Use **exact** system names from the returned list — case-sensitive, no reformatting
-  - ✅ `http('fetch', { connection: 'shopify' }, ...)` (if system is named `shopify`)
-  - ❌ `http('fetch', { connection: 'Shopify' }, ...)`
 - If a required system is **still missing after bootstrap**, stop and tell the user which systems are missing before writing any code. Ask for the name of their org, then give them the direct link `https://ai.versori.com/integrations/<project-id>?org=<org>` to add the missing systems. Proceed once they confirm.
+
+### Effective Base URLs (the `/api` strip)
+
+The Versori runtime strips a trailing `/api` segment from every system's
+configured base URL before concatenating it with your `fetch()` path. This is a
+platform-wide behaviour, not a template bug, and it is why `templateBaseUrl`
+in `versori projects systems list -o yaml` often looks "shorter" than the URL
+you see in the API docs or in the `versori projects systems bootstrap` summary
+output.
+
+Practical consequence: if a system's REST endpoints live at
+`https://host/api/foo`, the path you pass to `fetch()` must **include** the
+`/api/` segment yourself.
+
+Known examples:
+- Slack: `fetch('/api/chat.postMessage', ...)` — not `/chat.postMessage`.
+- Any template whose documented base ends in `/api/`.
+
+Before writing `fetch()` paths for a new system:
+
+1. Run `versori projects systems list -o yaml` and read `templateBaseUrl`.
+2. Compare it to the API's documented base URL.
+3. If the documented base ends in `/api/` and `templateBaseUrl` does not,
+   every `fetch()` path you write for that system must start with `/api/`.
+
+### The `connection` Parameter Takes the System Name
+
+`http('id', { connection: 'X' }, ...)` resolves `X` against the project's
+**systems**, not its connections. Despite the parameter name, `X` must equal
+the system name from `versori projects systems list`. Versori looks up which
+connection is currently active for that system at runtime.
+
+✅ Correct — system name, regardless of which connection is active:
+  http('post', { connection: 'slack' }, ...)
+
+❌ Wrong — these will all fail to resolve at runtime:
+  http('post', { connection: 'slack-prsum' }, ...)        // connection name
+  http('post', { connection: 'slack-feedback' }, ...)     // connection name
+  http('post', { connection: '01K7KZNV109PF1Z5ESFR27D19B' }, ...)  // system id
+
+This indirection is deliberate: you can swap the underlying connection —
+rotate credentials, migrate from bypass to OAuth, move between environments —
+without editing any workflow code.
+
+## Configuration & Variables
+
+Versori has three distinct mechanisms for non-code configuration. Do not
+conflate them:
+
+| Mechanism | Scope | When it resolves | Set via | Read from workflow via |
+|---|---|---|---|---|
+| `.env` file (`$FOO` refs) | Local CLI only | CLI-time | `.env` in project dir | **Not accessible at runtime** |
+| Activation variable | Per-activation | Runtime | Versori UI → Project → Activations → Variables | `ctx.activation.getVariable('foo')` |
+| KV store | Project / org / execution | Runtime | `ctx.openKv(...).set(...)` | `ctx.openKv(...).get(...)` |
+
+Rules:
+
+1. **`.env` values are not available at runtime.** They exist solely so
+   `versori connections create` can inject secrets via `$VARIABLE` references.
+   Never call `Deno.env.get(...)` / `process.env.X` in workflow code expecting
+   to pick up a `.env` value — it will be `undefined` in the deployed runtime.
+2. **Anything that might vary per tenant, per environment, or per deploy
+   should be an activation variable.** Hard-code a sensible fallback for
+   local development, but read the activation variable first. Example:
+
+   ```typescript
+   const channel =
+     (ctx.activation.getVariable('slackChannelId') as string | undefined) ??
+     '#general';
+   ```
+
+3. **Use KV for workflow-produced state** (cursors, dedupe keys, batch
+   progress), not for configuration.
+4. **Document every activation variable** your workflow reads in a
+   comment at the top of the file, including expected type and default. This
+   is the contract between the code and whoever configures the project.
+5. **Activation variables take effect immediately — no redeploy needed.**
+   Mention this when an operator asks "do I need to redeploy to change X?".
 
 ## CLI Commands
 
