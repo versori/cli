@@ -135,9 +135,6 @@ For larger integrations, split workflows into `src/workflows/` and shared utilit
 - **If the user chooses bypass:** use `--bypass` and suffix the connection name with random characters to avoid name conflicts. This is a fallback for when credentials aren't available yet.
 - **`--bypass` is mutually exclusive with credential flags.** Never combine `--bypass` with `--api-key`, `--username`/`--password`, or `--client-id`/`--client-secret`. When `--bypass` is passed, all credential flags are silently ignored and the connection is created with no authentication. Use `--bypass` only when the auth scheme type is `none` or the user explicitly wants to skip credentials entirely.
 - **Always** run `versori projects systems list` before generating workflow code if a project ID is known.
-- Use **exact** system names from the returned list — case-sensitive, no reformatting
-  - ✅ `http('fetch', { connection: 'shopify' }, ...)` (if system is named `shopify`)
-  - ❌ `http('fetch', { connection: 'Shopify' }, ...)`
 - If a required system is **still missing after bootstrap**, stop and tell the user which systems are missing before writing any code. Ask for the name of their org, then give them the direct link `https://ai.versori.com/integrations/<project-id>?org=<org>` to add the missing systems. Proceed once they confirm.
 
 ### Effective Base URLs (the `/api` strip)
@@ -163,6 +160,25 @@ Before writing `fetch()` paths for a new system:
 2. Compare it to the API's documented base URL.
 3. If the documented base ends in `/api/` and `templateBaseUrl` does not,
    every `fetch()` path you write for that system must start with `/api/`.
+
+### The `connection` Parameter Takes the System Name
+
+`http('id', { connection: 'X' }, ...)` resolves `X` against the project's
+**systems**, not its connections. Despite the parameter name, `X` must equal
+the system name from `versori projects systems list`. Versori looks up which
+connection is currently active for that system at runtime.
+
+✅ Correct — system name, regardless of which connection is active:
+  http('post', { connection: 'slack' }, ...)
+
+❌ Wrong — these will all fail to resolve at runtime:
+  http('post', { connection: 'slack-prsum' }, ...)        // connection name
+  http('post', { connection: 'slack-feedback' }, ...)     // connection name
+  http('post', { connection: '01K7KZNV109PF1Z5ESFR27D19B' }, ...)  // system id
+
+This indirection is deliberate: you can swap the underlying connection —
+rotate credentials, migrate from bypass to OAuth, move between environments —
+without editing any workflow code.
 
 ## CLI Commands
 

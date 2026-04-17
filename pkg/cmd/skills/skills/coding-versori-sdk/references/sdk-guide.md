@@ -174,6 +174,8 @@ import { fn, http, schedule } from '@versori/run';
 const fetchFromAPI = schedule('fetch-api', '*/5 * * * *')
   .then(
     http('get-data', { connection: 'my-api' }, async ({ fetch, log, data }) => {
+      //                            ^^^^^^^ system name from `versori projects systems list`,
+      //                                    not a connection name.
       const response = await fetch('/users');
       const users = await response.json();
       log.info('Fetched users', { count: users.length });
