@@ -127,7 +127,10 @@ production.env
 .git/
 .vscode/
 .cursor/
+.gitignore
 ```
+
+`.gitignore` ignores itself on purpose. Without this entry, `versori project sync` deletes the local `.gitignore` (it is not uploaded to the platform), which then exposes `.cursor/` and friends to being deleted on subsequent syncs.
 
 ## Environment Variables
 
