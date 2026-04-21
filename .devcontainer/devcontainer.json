@@ -1,0 +1,15 @@
+{
+    "build": {
+        "dockerfile": "user.Dockerfile",
+        "context": "."
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "configureZshAsDefaultShell": true,
+            "installOhMyZsh": true,
+            "installOhMyZshConfig": true
+        }
+  },
+  "remoteUser": "versorian"
+}
