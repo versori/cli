@@ -27,6 +27,7 @@ import (
 
 type List struct {
 	configFactory *config.ConfigFactory
+	starred       bool
 }
 
 type ProjectListResponse struct {
@@ -37,11 +38,12 @@ type ProjectSummary struct {
 	Id           string   `json:"id"`
 	Name         string   `json:"name"`
 	Deployed     bool     `json:"deployed"`
+	Starred      bool     `json:"starred"`
 	Environments []string `json:"environments"`
 }
 
 func init() {
-	utils.RegisterResource(ProjectSummary{}, []string{"Name", "Id", "Deployed", "Environments"})
+	utils.RegisterResource(ProjectSummary{}, []string{"Name", "Id", "Deployed", "Starred", "Environments"})
 }
 
 func NewList(c *config.ConfigFactory) *cobra.Command {
@@ -55,18 +57,25 @@ func NewList(c *config.ConfigFactory) *cobra.Command {
 		Run:   l.Run,
 	}
 
+	cmd.Flags().BoolVar(&l.starred, "starred", false, "Only list projects the organisation has starred")
+
 	return cmd
 }
 
 func (a *List) Run(cmd *cobra.Command, args []string) {
 	projectList := ProjectListResponse{}
 
-	err := a.configFactory.
+	req := a.configFactory.
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&projectList).
-		WithPath("o/:organisation/projects").
-		Do()
+		WithPath("o/:organisation/projects")
+
+	if a.starred {
+		req = req.WithQueryParam("starred", "true")
+	}
+
+	err := req.Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to list projects").WithReason(err).Done()
 	}
@@ -77,6 +86,7 @@ func (a *List) Run(cmd *cobra.Command, args []string) {
 			Id:           p.ID.String(),
 			Name:         p.Name,
 			Deployed:     deployed(p.Environments),
+			Starred:      p.Starred,
 			Environments: envNames(p.Environments),
 		})
 	}

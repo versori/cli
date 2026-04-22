@@ -75,6 +75,7 @@ func (c *create) Run(cmd *cobra.Command, args []string) {
 		Id:           resp.ID.String(),
 		Name:         resp.Name,
 		Deployed:     deployed(resp.Environments),
+		Starred:      resp.Starred,
 		Environments: envNames(resp.Environments),
 	}
 

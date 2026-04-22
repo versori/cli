@@ -14,6 +14,7 @@ It allows you to manage your authentication tokens and organisations.
 | `list` | List currently configured contexts. * denotes the active context. |
 | `rm` | Remove a configured context. |
 | `select` | Changes the active context. |
+| `show` | Show the active context (without secrets). |
 
 ---
 
@@ -84,6 +85,23 @@ versori context select <context-name> [flags]
 
 **Flags:**
 * `-h`, `--help`: help for select
+
+
+
+---
+
+### `versori context show`
+
+
+
+
+```sh
+versori context show [flags]
+```
+
+
+**Flags:**
+* `-h`, `--help`: help for show
 
 
 

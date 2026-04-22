@@ -20,8 +20,10 @@ The `projects` command (alias: `project`) provides subcommands for the full proj
 | `logs` | Check the project logs |
 | `proxy` | Send an HTTP request to a project's deployed environment |
 | `save` | Save the project files to versori (no deploy) |
+| `star` | Mark a project as a starred reference project for the organisation |
 | `sync` | Sync pulls the project files to the local directory. WARNING: This will overwrite any local changes |
 | `systems` | Manage systems within a project |
+| `unstar` | Remove the starred flag from a project |
 | `users` | Manage users (activations) within a project |
 | `versions` | Manage versions within a project. |
 
@@ -152,6 +154,7 @@ versori projects list [flags]
 
 **Flags:**
 * `-h`, `--help`: help for list
+* `--starred`: Only list projects the organisation has starred
 
 
 
@@ -236,6 +239,23 @@ versori projects save [--project <project-id>] [--directory <directory>] [flags]
 
 ---
 
+### `versori projects star`
+
+
+
+
+```sh
+versori projects star <project-id> [flags]
+```
+
+
+**Flags:**
+* `-h`, `--help`: help for star
+
+
+
+---
+
 ### `versori projects sync`
 
 
@@ -266,6 +286,23 @@ versori projects sync [--project <project-id>] [--directory <directory>]
 
 
 See the [systems reference](/docs/projects/systems.md) for detailed subcommands to manage systems within a project.
+
+
+---
+
+### `versori projects unstar`
+
+
+
+
+```sh
+versori projects unstar <project-id> [flags]
+```
+
+
+**Flags:**
+* `-h`, `--help`: help for unstar
+
 
 
 ---

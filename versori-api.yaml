@@ -60,6 +60,13 @@ paths:
       summary: List projects for organisation
       tags:
         - projects
+      parameters:
+        - name: starred
+          in: query
+          required: false
+          description: When true, only projects the organisation has starred are returned.
+          schema:
+            type: boolean
       responses:
         "200":
           description: OK
@@ -159,6 +166,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Project"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/star:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    put:
+      operationId: StarProject
+      summary: Star Project
+      description: |
+        StarProject marks the project as a starred reference project for the organisation. Starred projects are treated as blessed examples and may be surfaced to AI coding tools as reference patterns.
+      tags:
+        - projects
+      responses:
+        "204":
+          description: No Content
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: UnstarProject
+      summary: Unstar Project
+      description: |
+        UnstarProject removes the starred flag from the project for the organisation.
+      tags:
+        - projects
+      responses:
+        "204":
+          description: No Content
         default:
           description: Error
           content:
@@ -3851,12 +3895,16 @@ components:
           items:
             $ref: "#/components/schemas/ProjectEnvironment"
           x-go-type-skip-optional-pointer: true
+        starred:
+          type: boolean
+          description: Whether the organisation has marked this project as a starred reference project.
       required:
         - id
         - name
         - createdAt
         - updatedAt
         - environments
+        - starred
 
     DynamicVariablesSchema:
       description: |
@@ -3939,6 +3987,9 @@ components:
           $ref: '#/components/schemas/ProjectSettings'
         metadata:
           $ref: "#/components/schemas/ProjectMetadata"
+        starred:
+          type: boolean
+          description: Whether the organisation has marked this project as a starred reference project.
       required:
         - id
         - name
@@ -3948,6 +3999,7 @@ components:
         - currentFiles
         - settings
         - metadata
+        - starred
 
     ProjectEnvironment:
       type: object

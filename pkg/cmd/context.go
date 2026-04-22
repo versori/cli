@@ -31,11 +31,13 @@ func newCtxCommand(c *config.ConfigFactory) *cobra.Command {
 	list := context.NewList(c)
 	set := context.NewSet(c)
 	rm := context.NewRemove(c)
+	showCmd := context.NewShow(c)
 
 	cmd.AddCommand(add)
 	cmd.AddCommand(list)
 	cmd.AddCommand(set)
 	cmd.AddCommand(rm)
+	cmd.AddCommand(showCmd)
 
 	return cmd
 }
