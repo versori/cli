@@ -16,6 +16,7 @@ The `projects` command (alias: `project`) provides subcommands for the full proj
 | `details` | Get details for a project. Pass in - to read the project id from stdin |
 | `edit` | Edit project environment configuration (resource limits and requests) |
 | `environments` | Manage project environments |
+| `files` | List or read files from a project. Pass in - as the project id to read it from stdin |
 | `list` | Lists all projects in the current context |
 | `logs` | Check the project logs |
 | `proxy` | Send an HTTP request to a project's deployed environment |
@@ -138,6 +139,31 @@ versori projects edit --project <project-id> --environment <environment-name> [f
 
 
 See the [environments reference](/docs/projects/environments.md) for detailed subcommands to manage project environments.
+
+
+---
+
+### `versori projects files`
+
+
+List filenames in a project, or print a single file's content to stdout.
+
+With no filename argument, lists filenames (honours -o table/json/yaml).
+With a filename, writes that file's content verbatim to stdout so it can be
+piped to other tools (jq, less, grep, etc.).
+With --all, dumps all files including contents as JSON.
+
+```sh
+versori projects files <project-id> [filename] [flags]
+```
+
+
+**Flags:**
+* `--all`: Dump all files (filenames and contents) as JSON to stdout
+* `-h`, `--help`: help for files
+* `--version`: Read files from a specific version id instead of the current files
+
+
 
 
 ---
