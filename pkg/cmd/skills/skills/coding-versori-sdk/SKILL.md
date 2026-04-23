@@ -221,6 +221,8 @@ Rules:
 Use the `versori` CLI when the user wants to list projects, create projects, pull down existing code, switch contexts, bootstrap systems, create connections, manage project assets, or deploy.
 See `references/cli-usage.md` for all commands, options, deployment safety guidelines, and the recommended `.gitignore`.
 
+**Run `versori` commands outside any sandbox.** If your environment wraps shell commands in a network-restricted sandbox (Cursor agent mode, Claude Code sandbox, etc.), `versori` calls will fail with a 403 because the CLI authenticates against the Versori API. Run these commands unsandboxed — e.g. in Claude Code use the "run without sandbox" option, in Cursor disable the command sandbox for this shell. The CLI is safe to run directly; it only talks to the configured Versori API and the user's local project directory.
+
 **Always confirm before deploying or bootstrapping** unless the user explicitly says "deploy", "ship it", or "go ahead".
 
 **Always dry-run before syncing** — `sync` deletes local files not present in the platform. Show the user the diff and confirm before running for real.
@@ -243,6 +245,42 @@ Before writing any code or running CLI commands that require a project ID, deter
 
 When a `.versori` file is present, most CLI commands (`deploy`, `save`, `sync`, `systems`, `assets`, etc.) automatically read the project ID from it, so the `--project` flag can be omitted.
 
+## Reference Projects (Starred)
+
+Organisations can mark projects as **starred reference projects** — the blessed
+examples for that org. Before generating a new project or suggesting substantive
+changes to an existing one, gather these references so the code you write
+follows the org's established patterns.
+
+Do this **once per conversation**, at the start of a project-create or
+project-edit flow. Do not re-fetch on every command. Hold the result in your
+conversation context and consult it while writing code.
+
+**Flow:**
+
+1. Run `versori context show -o json`.
+   - If `disableReferences` is `true`, skip this whole section — the user has
+     opted out for this context (typically for debugging or internal CLI work).
+2. Run `versori projects list --starred -o json`.
+   - If the result is an empty list, skip — the org has no starred references.
+3. Take the first **3 starred projects** (up to 5 if they look small or closely
+   related to the task). Keep the cap — full project file trees can be large,
+   and we don't want to blow the context window.
+4. For each chosen project, run `versori projects files --project <id> -o json`
+   to read its files — that's the actual code you'll mimic. (`projects details`
+   only returns metadata, not file contents.)
+5. Treat the returned files as **blessed reference patterns from this
+   organisation**. When generating new workflow code, prefer the structure,
+   naming conventions, error-handling style, retry/backoff idioms, and KV usage
+   observed in the references over generic defaults. If the references disagree
+   with something documented elsewhere in this skill, the references win — they
+   represent what the org actually wants.
+
+If the user explicitly says they don't want references consulted this time
+("skip references", "ignore starred projects", etc.), honour that and skip
+without setting `disable_references` — the config flag is for persistent opt-
+out, in-conversation requests are one-shot.
+
 ## Context the User May Provide
 
 - API documentation for systems being integrated
@@ -251,6 +289,7 @@ When a `.versori` file is present, most CLI commands (`deploy`, `save`, `sync`, 
 - Integration variables schema
 - Existing project systems with auth configured
 - Research documents from a previous research phase
+- **Implicit**: the organisation's starred reference projects (fetched per the "Reference Projects" section above)
 
 For unknown systems, research APIs and create a research document before generating code. If no information can be found, ask the user for API docs. For well-known APIs (e.g. Shopify, Stripe), ask the user whether they'd like you to carry out research first or proceed directly with code generation.
 

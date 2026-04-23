@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2026 Versori Group Inc
+ *
+ * Use of this software is governed by the Business Source License 1.1
+ * included in the LICENSE file at the root of this repository.
+ *
+ * Change Date: 2030-03-01
+ * Change License: Apache License, Version 2.0
+ *
+ * As of the Change Date, in accordance with the Business Source License,
+ * use of this software will be governed by the Apache License, Version 2.0.
+ */
+
+package projects
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/spf13/cobra"
+
+	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/utils"
+)
+
+type unstar struct {
+	configFactory *config.ConfigFactory
+}
+
+func NewUnstar(c *config.ConfigFactory) *cobra.Command {
+	u := &unstar{configFactory: c}
+
+	cmd := &cobra.Command{
+		Use:   "unstar <project-id>",
+		Short: "Remove the starred flag from a project",
+		Args:  cobra.ExactArgs(1),
+		Run:   u.Run,
+	}
+
+	return cmd
+}
+
+func (u *unstar) Run(cmd *cobra.Command, args []string) {
+	projectId := args[0]
+
+	err := u.configFactory.
+		NewRequest().
+		WithMethod(http.MethodDelete).
+		WithPath("o/:organisation/projects/" + projectId + "/star").
+		Do()
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to unstar project").WithReason(err).Done()
+	}
+
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "unstarred")
+}
