@@ -14,22 +14,22 @@
 package projects
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
+	"os"
 
 	"github.com/spf13/cobra"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
 type FileSummary struct {
 	Filename string `json:"filename"`
 	Size     int    `json:"size"`
+	Content  string `json:"content"`
 }
 
 func init() {
@@ -38,7 +38,7 @@ func init() {
 
 type files struct {
 	configFactory *config.ConfigFactory
-	all           bool
+	projectId     flags.ProjectId
 	version       string
 }
 
@@ -46,42 +46,35 @@ func NewFiles(c *config.ConfigFactory) *cobra.Command {
 	f := &files{configFactory: c}
 
 	cmd := &cobra.Command{
-		Use:   "files <project-id> [filename]",
-		Short: "List or read files from a project. Pass in - as the project id to read it from stdin",
-		Long: `List filenames in a project, or print a single file's content to stdout.
+		Use:   "files [filename]",
+		Short: "List or read files from a project",
+		Long: `List files in a project, or print a single file's content to stdout.
 
-With no filename argument, lists filenames (honours -o table/json/yaml).
+With no arguments, lists files. Default -o table shows filename and size;
+-o json and -o yaml include file contents too.
+
 With a filename, writes that file's content verbatim to stdout so it can be
-piped to other tools (jq, less, grep, etc.).
-With --all, dumps all files including contents as JSON.`,
-		Args: cobra.RangeArgs(1, 2),
+piped to other tools (jq, less, grep, etc.).`,
+		Args: cobra.MaximumNArgs(1),
 		Run:  f.Run,
 	}
 
-	flags := cmd.Flags()
-	flags.BoolVar(&f.all, "all", false, "Dump all files (filenames and contents) as JSON to stdout")
-	flags.StringVar(&f.version, "version", "", "Read files from a specific version id instead of the current files")
+	f.projectId.SetFlag(cmd.Flags())
+	cmd.Flags().StringVar(&f.version, "version", "", "Read files from a specific version id instead of the current files")
 
 	return cmd
 }
 
 func (f *files) Run(cmd *cobra.Command, args []string) {
-	projectId := args[0]
-	if projectId == "-" {
-		b, err := io.ReadAll(cmd.InOrStdin())
-		if err != nil {
-			utils.NewExitError().WithMessage("failed to read project id from stdin").WithReason(err).Done()
-		}
-		projectId = strings.TrimSpace(string(b))
+	cwd, err := os.Getwd()
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to get current directory").WithReason(err).Done()
 	}
+	projectId := f.projectId.GetFlagOrDie(cwd)
 
 	var filename string
-	if len(args) == 2 {
-		filename = args[1]
-	}
-
-	if filename != "" && f.all {
-		utils.NewExitError().WithMessage("cannot pass both a filename argument and --all").Done()
+	if len(args) == 1 {
+		filename = args[0]
 	}
 
 	path := "o/:organisation/projects/" + projectId + "/files"
@@ -90,7 +83,7 @@ func (f *files) Run(cmd *cobra.Command, args []string) {
 	}
 
 	result := v1.Files{}
-	err := f.configFactory.
+	err = f.configFactory.
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&result).
@@ -100,8 +93,7 @@ func (f *files) Run(cmd *cobra.Command, args []string) {
 		utils.NewExitError().WithMessage("failed to get project files").WithReason(err).Done()
 	}
 
-	switch {
-	case filename != "":
+	if filename != "" {
 		for _, file := range result.Files {
 			if file.Filename == filename {
 				_, _ = fmt.Fprint(cmd.OutOrStdout(), file.Content)
@@ -109,17 +101,15 @@ func (f *files) Run(cmd *cobra.Command, args []string) {
 			}
 		}
 		utils.NewExitError().WithMessage(fmt.Sprintf("file %q not found in project", filename)).Done()
-	case f.all:
-		data, err := json.Marshal(result)
-		if err != nil {
-			utils.NewExitError().WithMessage("failed to marshal files").WithReason(err).Done()
-		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
-	default:
-		summaries := make([]FileSummary, 0, len(result.Files))
-		for _, file := range result.Files {
-			summaries = append(summaries, FileSummary{Filename: file.Filename, Size: len(file.Content)})
-		}
-		f.configFactory.Print(summaries)
 	}
+
+	summaries := make([]FileSummary, 0, len(result.Files))
+	for _, file := range result.Files {
+		summaries = append(summaries, FileSummary{
+			Filename: file.Filename,
+			Size:     len(file.Content),
+			Content:  file.Content,
+		})
+	}
+	f.configFactory.Print(summaries)
 }

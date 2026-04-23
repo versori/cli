@@ -266,8 +266,8 @@ conversation context and consult it while writing code.
 3. Take the first **3 starred projects** (up to 5 if they look small or closely
    related to the task). Keep the cap — full project file trees can be large,
    and we don't want to blow the context window.
-4. For each chosen project, run `versori projects files <id> --all -o json` to
-   read its files — that's the actual code you'll mimic. (`projects details`
+4. For each chosen project, run `versori projects files --project <id> -o json`
+   to read its files — that's the actual code you'll mimic. (`projects details`
    only returns metadata, not file contents.)
 5. Treat the returned files as **blessed reference patterns from this
    organisation**. When generating new workflow code, prefer the structure,
