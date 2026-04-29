@@ -16,12 +16,15 @@ The `projects` command (alias: `project`) provides subcommands for the full proj
 | `details` | Get details for a project. Pass in - to read the project id from stdin |
 | `edit` | Edit project environment configuration (resource limits and requests) |
 | `environments` | Manage project environments |
+| `files` | List or read files from a project |
 | `list` | Lists all projects in the current context |
 | `logs` | Check the project logs |
 | `proxy` | Send an HTTP request to a project's deployed environment |
 | `save` | Save the project files to versori (no deploy) |
+| `star` | Mark a project as a starred reference project for the organisation |
 | `sync` | Sync pulls the project files to the local directory. WARNING: This will overwrite any local changes |
 | `systems` | Manage systems within a project |
+| `unstar` | Remove the starred flag from a project |
 | `users` | Manage users (activations) within a project |
 | `versions` | Manage versions within a project. |
 
@@ -140,6 +143,33 @@ See the [environments reference](/docs/projects/environments.md) for detailed su
 
 ---
 
+### `versori projects files`
+
+
+List files in a project, or print a single file's content to stdout.
+
+With no arguments, lists files. Default -o table shows filename and size;
+-o json and -o yaml include file contents too.
+
+With a filename, writes that file's content verbatim to stdout so it can be
+piped to other tools (jq, less, grep, etc.).
+
+```sh
+versori projects files [filename] [flags]
+```
+
+
+**Flags:**
+* `-h`, `--help`: help for files
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
+* `--version`: Read files from a specific version id instead of the current files
+
+
+
+
+---
+
 ### `versori projects list`
 
 
@@ -152,6 +182,7 @@ versori projects list [flags]
 
 **Flags:**
 * `-h`, `--help`: help for list
+* `--starred`: Only list projects the organisation has starred
 
 
 
@@ -236,6 +267,23 @@ versori projects save [--project <project-id>] [--directory <directory>] [flags]
 
 ---
 
+### `versori projects star`
+
+
+
+
+```sh
+versori projects star <project-id> [flags]
+```
+
+
+**Flags:**
+* `-h`, `--help`: help for star
+
+
+
+---
+
 ### `versori projects sync`
 
 
@@ -266,6 +314,23 @@ versori projects sync [--project <project-id>] [--directory <directory>]
 
 
 See the [systems reference](/docs/projects/systems.md) for detailed subcommands to manage systems within a project.
+
+
+---
+
+### `versori projects unstar`
+
+
+
+
+```sh
+versori projects unstar <project-id> [flags]
+```
+
+
+**Flags:**
+* `-h`, `--help`: help for unstar
+
 
 
 ---

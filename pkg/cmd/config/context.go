@@ -14,8 +14,9 @@
 package config
 
 type Context struct {
-	Name           string `yaml:"name"`
-	OrganisationId string `yaml:"organisation_id"`
-	JWT            string `yaml:"jwt"`
-	URLOverwrite   string `yaml:"url_overwrite"`
+	Name              string `yaml:"name"`
+	OrganisationId    string `yaml:"organisation_id"`
+	JWT               string `yaml:"jwt"`
+	URLOverwrite      string `yaml:"url_overwrite"`
+	DisableReferences bool   `yaml:"disable_references,omitempty"`
 }

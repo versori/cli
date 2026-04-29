@@ -2151,8 +2151,11 @@ type Project struct {
 	Name     string          `json:"name"`
 
 	// Settings ProjectSettings hold configuration for the project
-	Settings  ProjectSettings `json:"settings"`
-	UpdatedAt time.Time       `json:"updatedAt"`
+	Settings ProjectSettings `json:"settings"`
+
+	// Starred Whether the organisation has marked this project as a starred reference project.
+	Starred   bool      `json:"starred"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // ProjectCreate is the request body for creating a new Project.
@@ -2272,8 +2275,11 @@ type ProjectSummary struct {
 	Environments []ProjectEnvironment `json:"environments"`
 
 	// ID The unique identifier for the project.
-	ID        ulid.ULID `json:"id"`
-	Name      string    `json:"name"`
+	ID   ulid.ULID `json:"id"`
+	Name string    `json:"name"`
+
+	// Starred Whether the organisation has marked this project as a starred reference project.
+	Starred   bool      `json:"starred"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
@@ -2778,6 +2784,12 @@ type ListIssuesParams struct {
 
 // ListIssuesParamsSearchDate defines parameters for ListIssues.
 type ListIssuesParamsSearchDate string
+
+// ListProjectsParams defines parameters for ListProjects.
+type ListProjectsParams struct {
+	// Starred When true, only projects the organisation has starred are returned.
+	Starred *bool `form:"starred,omitempty" json:"starred,omitempty"`
+}
 
 // ListProjectConnectionTemplatesParams defines parameters for ListProjectConnectionTemplates.
 type ListProjectConnectionTemplatesParams struct {

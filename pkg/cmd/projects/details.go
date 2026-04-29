@@ -30,6 +30,7 @@ type ProjectDetails struct {
 	Id           string              `json:"id"`
 	Name         string              `json:"name"`
 	Deployed     bool                `json:"deployed"`
+	Starred      bool                `json:"starred"`
 	Environments []EnvironmentDetail `json:"environments"`
 }
 
@@ -44,7 +45,7 @@ type EnvironmentDetail struct {
 }
 
 func init() {
-	utils.RegisterResource(ProjectDetails{}, []string{"Name", "Id", "Deployed", "Environments.Name"})
+	utils.RegisterResource(ProjectDetails{}, []string{"Name", "Id", "Deployed", "Starred", "Environments.Name"})
 }
 
 type details struct {
@@ -119,6 +120,7 @@ func (d *details) Run(cmd *cobra.Command, args []string) {
 		Id:           project.ID.String(),
 		Name:         project.Name,
 		Deployed:     deployed(project.Environments),
+		Starred:      project.Starred,
 		Environments: envDetails(project.Environments),
 	}
 
