@@ -1,15 +1,15 @@
 ---
 name: coding-versori-sdk
-description: Use this skill whenever the user wants to create, debug, or modify data integration workflows using the versori-run SDK. Triggers include requests to build ETL processes, API integrations, data transformation pipelines, database synchronization, webhooks, file processing, real-time data streaming, or any data integration service. Use when the user mentions Versori, versori-run, or needs help with TypeScript-based integration code.
+description: Use this skill whenever the user wants to create, debug, or modify data integration workflows using the versori-run SDK. Triggers include requests to build ETL processes, API integrations, data transformation pipelines, database synchronization, webhooks, file processing, real-time data streaming, or any data integration service. Use when the user mentions Versori, versori-run, or needs help with TypeScript-based integration code. ALSO use this skill — regardless of the user's literal wording — in any workspace that imports `@versori/run` (or lists `@versori/run` in `package.json`) when (a) using generic prompts  such as "implement the plan as specified" prompt with no Versori keywords, or (b) resuming from a `[Previous conversation summary]`. Re-evaluate this skill on every resume; do not inherit a prior agent's skill-evaluation decision.
 ---
 
 # Versori Integration Skill
 
 Expert-level data integration code using the versori-run SDK.
 
-## Retriaval sources
+## Retrieval sources
 
-The most up-to-date information can always be found in the official documentation. Prefer reading the official documentation over relaing on exisintg Versori knowledge.
+The most up-to-date information can always be found in the official documentation. Prefer reading the official documentation over relying on existing Versori knowledge.
 
 | Resource | URL |
 |---|---|
@@ -227,7 +227,7 @@ See `references/cli-usage.md` for all commands, options, deployment safety guide
 
 **Always ensure a `.gitignore` exists** — After syncing a project or setting up a new project directory, check if a `.gitignore` file exists. If it doesn't, create one with the recommended content from `references/cli-usage.md` before installing dependencies or deploying. This prevents `node_modules/`, `dist/`, and other local artifacts from being pushed to the platform.
 
-**Always verify code locally before deploying** — Before running a deploy command, you MUST ensure the code is valid by running `deno install` followed by `deno check src/index.ts` (or `deno lint`). Fix any type errors or linting issues before attempting to deploy. If `deno` is not available skill local validation.
+**Always verify code locally before deploying** — Before running a deploy command, you MUST ensure the code is valid by running `deno install` followed by `deno check src/index.ts` (or `deno lint`). Fix any type errors or linting issues before attempting to deploy. If `deno` is not available skip local validation.
 
 **Write tests for pure functions** — Whenever you extract logic into pure functions (e.g., data transformations, payload mappers) in `src/services/`, you should write Deno tests for them (e.g., `src/services/mapper.test.ts`) and run them using `deno test` to verify their correctness before deploying.
 
@@ -239,7 +239,7 @@ Before writing any code or running CLI commands that require a project ID, deter
 2. **No `.versori` file** — ask the user whether they want to use an existing project or create a new one:
    - **Existing project**: run `versori projects list` to show available projects, let the user pick one, then continue (sync it down if needed).
    - **New project**: run `versori projects create --name <name>` to create a fresh project and use the returned ID.
-   - **SYnc project**: run `versori projects sync --project <project-id>` to pull in the porrject context locally before moving on with the next tasks.
+   - **Sync project**: run `versori projects sync --project <project-id>` to pull in the project context locally before moving on with the next tasks.
 
 When a `.versori` file is present, most CLI commands (`deploy`, `save`, `sync`, `systems`, `assets`, etc.) automatically read the project ID from it, so the `--project` flag can be omitted.
 
@@ -283,3 +283,11 @@ See `references/research-docs.md` for the required document structure, inclusion
 ## SDK Reference
 
 Before writing any workflow code, read `references/sdk-guide.md` for the full Versori Run SDK guide covering core concepts (workflows, triggers, tasks, interpreters), usage patterns (scheduled workflows, webhooks, HTTP tasks, error handling, durable workflows, KV storage), context API, type signatures, and best practices for code generation.
+
+## Plan-mode behaviour
+
+Plan mode Build button can send a domain-neutral prompt similar to — _"Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself. To-do's from the plan have already been created..."_ — that contains no Versori keywords. To make sure the Build invocation re-triggers this skill, when you author a plan in plan mode for a project that uses `@versori/run`, embed this line at the very top of the plan file (under the title, before any todo list):
+
+> **Required reading:** before executing any task below, load `skills/coding-versori-sdk/SKILL.md`. This plan implements code on top of `@versori/run` and depends on its conventions.
+
+If you are an agent resuming from a `[Previous conversation summary]` in a workspace that imports `@versori/run`, re-read this SKILL.md before your first action. The previous agent's skill-evaluation decision does not carry through summaries.
