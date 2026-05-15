@@ -14,6 +14,7 @@
 package projects
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/spf13/cobra"
@@ -69,6 +70,22 @@ func (c *create) Run(cmd *cobra.Command, args []string) {
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to create project").WithReason(err).Done()
+	}
+
+	// Opt the project into the v2 build agent. Non-fatal: project is already
+	// created, so a failure here is worth a warning but not an exit.
+	settingsUpdate := v1.ProjectUpdate{
+		Settings: &v1.ProjectSettings{
+			CodingChatVersion: utils.Ptr("v2"),
+		},
+	}
+	if err := c.configFactory.
+		NewRequest().
+		WithMethod(http.MethodPut).
+		WithPath("o/:organisation/projects/" + resp.ID.String()).
+		JSONBody(settingsUpdate).
+		Do(); err != nil {
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "warning: project created but failed to enable v2 build agent:", err)
 	}
 
 	summary := ProjectSummary{
