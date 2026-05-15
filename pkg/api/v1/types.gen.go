@@ -2255,6 +2255,9 @@ type ProjectSettings struct {
 	// rather than in NATS. Defaults to false (NATS).
 	ChatStoredInDB *bool `json:"chatStoredInDB,omitempty"`
 
+	// CodingChatVersion Version tag for the coding chat feature
+	CodingChatVersion *string `json:"codingChatVersion,omitempty"`
+
 	// DefaultEnvironment DefaultEnvironment marks one environment as the default in the project.
 	// This is just used to know which one to load in the UI
 	DefaultEnvironment *string `json:"defaultEnvironment,omitempty"`

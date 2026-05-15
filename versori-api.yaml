@@ -3802,6 +3802,9 @@ components:
         planningChatVersion:
           description: Version tag for the planning chat feature
           type: string
+        codingChatVersion:
+          description: Version tag for the coding chat feature
+          type: string
         chatStoredInDB:
           description: |
             ChatStoredInDB is a flag that indicates whether chat messages are stored in the database
