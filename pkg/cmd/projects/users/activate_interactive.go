@@ -54,8 +54,9 @@ func (a *activate) promptForConnections(projectId, envId string) ([]connectionPa
 	templates := a.fetchProjectConnectionTemplates(projectId, envId)
 	if len(templates) == 0 {
 		return nil, fmt.Errorf(
-			"environment has no connection templates declared. Link a system to this environment first: " +
-				"versori projects systems link --project " + projectId + " --environment " + a.environmentName + " --system <system-id>")
+			"environment has no connection templates declared. Link a system to this environment first: "+
+				"versori projects systems link --project %s --environment %s --system <system-id>",
+			projectId, a.environmentName)
 	}
 
 	userULID, err := a.resolveUserULID()

@@ -83,7 +83,7 @@ func validateActivationVariables(cf *config.ConfigFactory, projectId string, sup
 		if len(supplied) > 0 {
 			return fmt.Errorf(
 				"project has no DynamicVariablesSchema declared, but variables were supplied (%s).\n"+
-					"  Declare them first:  versori projects variables add --project %s ...",
+					"  Declare them first:  versori projects variables add --project %s",
 				strings.Join(sortedKeys(supplied), ", "), projectId)
 		}
 		return nil
