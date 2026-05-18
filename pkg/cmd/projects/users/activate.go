@@ -39,11 +39,20 @@ type activate struct {
 	variablesFile   string
 }
 
+// connectionPair is the on-the-wire shape for one entry in ActivationCreate.Connections. Declared
+// as a type alias (note the `=`) so values constructed by parseConnectionPairs and the interactive
+// picker are both assignment-compatible with the anonymous struct slice on ActivationCreate.
+type connectionPair = struct {
+	Connection           *v1.ConnectionCreate   `json:"connection,omitempty"`
+	EnvironmentSystemID  v1.EnvironmentSystemID `json:"connectionTemplateId"`
+	ExistingConnectionID *ulid.ULID             `json:"existingConnectionId,omitempty"`
+}
+
 func NewActivate(c *config.ConfigFactory) *cobra.Command {
 	a := &activate{configFactory: c}
 
 	cmd := &cobra.Command{
-		Use:   "activate --project <project-id> --environment <environment-name> --external-id <user-external-id> --connection <system-id>=<connection-id> [--variable key=value]... [--variables-file <path>]",
+		Use:   "activate --project <project-id> --environment <environment-name> --external-id <user-external-id> [--connection <system-template-id>=<connection-id>]... [--variable key=value]... [--variables-file <path>]",
 		Short: "Activate an end-user on a project environment",
 		Long: `Activate an end-user on a project environment. The activation links an end-user to a
 specific connection per environment system, plus an optional bag of dynamic variables that
@@ -51,10 +60,13 @@ workflow code reads via ctx.activation.getVariable('<key>').
 
 The number of --connection flags must equal the number of environment systems for the target
 environment (use 'versori projects systems list --project <id> --environment <env>' to enumerate them).
+Omit --connection entirely to be prompted with a picker per environment system — the picker lists
+the user's existing connections matching each system. Same for required dynamic variables: any
+required schema entry not supplied via --variable / --variables-file is prompted interactively.
 
 Dynamic variables can be supplied inline via repeatable --variable key=value flags, or in bulk
 from a JSON file via --variables-file. Variables are validated against the project's
-DynamicVariablesSchema (manage it with 'versori projects variables set/patch'); unknown keys fail.
+DynamicVariablesSchema (manage it with 'versori projects variables set'); unknown keys fail.
 
 End-users themselves are created with 'versori users create -e <external-id> -n <display-name>'.
 Connections are created with 'versori connections create' (use --external-id <user> for embedded
@@ -66,13 +78,12 @@ per-end-user connections). Once both exist, this command links them together.`,
 	a.projectId.SetFlag(f)
 	f.StringVar(&a.environmentName, "environment", "", "The environment name within the project")
 	f.StringVarP(&a.userExternalId, "external-id", "e", "", "External ID of the end-user to activate")
-	f.StringSliceVar(&a.connectionPairs, "connection", nil, "Connection pair in the form <system-template-id>=<connection-id> (repeatable; one per environment system)")
-	f.StringSliceVar(&a.variablePairs, "variable", nil, "Dynamic variable in the form key=value (repeatable). Values are parsed as JSON when valid, else treated as strings.")
+	f.StringSliceVar(&a.connectionPairs, "connection", nil, "Connection pair <system-template-id>=<connection-id> (repeatable; one per environment system). Omit to pick interactively.")
+	f.StringSliceVar(&a.variablePairs, "variable", nil, "Dynamic variable in the form key=value (repeatable). Values are parsed as JSON when valid, else treated as strings. Missing required keys are prompted interactively.")
 	f.StringVar(&a.variablesFile, "variables-file", "", "Path to a JSON file containing a flat object of dynamic variables (merged with --variable; --variable wins on conflicts)")
 
 	_ = cmd.MarkFlagRequired("environment")
 	_ = cmd.MarkFlagRequired("external-id")
-	_ = cmd.MarkFlagRequired("connection")
 
 	return cmd
 }
@@ -86,10 +97,25 @@ func (a *activate) Run(_ *cobra.Command, _ []string) {
 	if err != nil {
 		utils.NewExitError().WithMessage("invalid --connection flag").WithReason(err).Done()
 	}
+	if len(connections) == 0 {
+		connections, err = a.promptForConnections(projectId, envId)
+		if err != nil {
+			utils.NewExitError().WithMessage("failed to gather connections interactively").WithReason(err).Done()
+		}
+	}
 
 	variables, err := mergeVariables(a.variablesFile, a.variablePairs)
 	if err != nil {
 		utils.NewExitError().WithMessage("invalid dynamic variables").WithReason(err).Done()
+	}
+
+	variables, err = a.promptForMissingRequiredVariables(projectId, variables)
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to gather required variables interactively").WithReason(err).Done()
+	}
+
+	if err := validateActivationVariables(a.configFactory, projectId, variables); err != nil {
+		utils.NewExitError().WithMessage("activation would fail variable validation").WithReason(err).Done()
 	}
 
 	payload := v1.ActivationCreate{
@@ -141,16 +167,8 @@ func resolveEnvironmentID(cf *config.ConfigFactory, projectId, envName string) s
 
 // parseConnectionPairs converts repeated --connection <system-template-id>=<connection-id> flags
 // into the ActivationCreate.Connections slice shape that the platform expects.
-func parseConnectionPairs(pairs []string) ([]struct {
-	Connection           *v1.ConnectionCreate    `json:"connection,omitempty"`
-	EnvironmentSystemID  v1.EnvironmentSystemID  `json:"connectionTemplateId"`
-	ExistingConnectionID *ulid.ULID              `json:"existingConnectionId,omitempty"`
-}, error) {
-	out := make([]struct {
-		Connection           *v1.ConnectionCreate    `json:"connection,omitempty"`
-		EnvironmentSystemID  v1.EnvironmentSystemID  `json:"connectionTemplateId"`
-		ExistingConnectionID *ulid.ULID              `json:"existingConnectionId,omitempty"`
-	}, 0, len(pairs))
+func parseConnectionPairs(pairs []string) ([]connectionPair, error) {
+	out := make([]connectionPair, 0, len(pairs))
 
 	for _, p := range pairs {
 		parts := strings.SplitN(p, "=", 2)
@@ -165,11 +183,7 @@ func parseConnectionPairs(pairs []string) ([]struct {
 		if err != nil {
 			return nil, fmt.Errorf("invalid connection-id %q: %w", parts[1], err)
 		}
-		out = append(out, struct {
-			Connection           *v1.ConnectionCreate    `json:"connection,omitempty"`
-			EnvironmentSystemID  v1.EnvironmentSystemID  `json:"connectionTemplateId"`
-			ExistingConnectionID *ulid.ULID              `json:"existingConnectionId,omitempty"`
-		}{
+		out = append(out, connectionPair{
 			EnvironmentSystemID:  tplID,
 			ExistingConnectionID: &connID,
 		})

@@ -23,7 +23,7 @@ whichever namespace feels more natural for the task at hand.
 | `create` | Create an activation (link an end-user to an environment with its connections + variables) |
 | `delete` | Delete an activation (unlinks an end-user from an environment) |
 | `details` | Show one activation's details (connections + variables) |
-| `list` | List activations on a project environment |
+| `list` | List end-users on a project environment with their activation status (active/inactive) |
 | `set-variable` | Set a single dynamic variable on an activation |
 
 ---
@@ -37,29 +37,32 @@ workflow code reads via ctx.activation.getVariable('<key>').
 
 The number of --connection flags must equal the number of environment systems for the target
 environment (use 'versori projects systems list --project <id> --environment <env>' to enumerate them).
+Omit --connection entirely to be prompted with a picker per environment system — the picker lists
+the user's existing connections matching each system. Same for required dynamic variables: any
+required schema entry not supplied via --variable / --variables-file is prompted interactively.
 
 Dynamic variables can be supplied inline via repeatable --variable key=value flags, or in bulk
 from a JSON file via --variables-file. Variables are validated against the project's
-DynamicVariablesSchema (manage it with 'versori projects variables set/patch'); unknown keys fail.
+DynamicVariablesSchema (manage it with 'versori projects variables set'); unknown keys fail.
 
 End-users themselves are created with 'versori users create -e <external-id> -n <display-name>'.
 Connections are created with 'versori connections create' (use --external-id <user> for embedded
 per-end-user connections). Once both exist, this command links them together.
 
 ```sh
-versori projects activations create --project <project-id> --environment <environment-name> --external-id <user-external-id> --connection <system-id>=<connection-id> [--variable key=value]... [--variables-file <path>] [flags]
+versori projects activations create --project <project-id> --environment <environment-name> --external-id <user-external-id> [--connection <system-template-id>=<connection-id>]... [--variable key=value]... [--variables-file <path>] [flags]
 ```
 
 
 **Flags:**
-* `--connection`: Connection pair in the form <system-template-id>=<connection-id> (repeatable; one per environment system)
+* `--connection`: Connection pair <system-template-id>=<connection-id> (repeatable; one per environment system). Omit to pick interactively.
 
 * `--environment`: The environment name within the project
 * `-e`, `--external-id`: External ID of the end-user to activate
 * `-h`, `--help`: help for create
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
-* `--variable`: Dynamic variable in the form key=value (repeatable). Values are parsed as JSON when valid, else treated as strings.
+* `--variable`: Dynamic variable in the form key=value (repeatable). Values are parsed as JSON when valid, else treated as strings. Missing required keys are prompted interactively.
 
 * `--variables-file`: Path to a JSON file containing a flat object of dynamic variables (merged with --variable; --variable wins on conflicts)
 
@@ -116,7 +119,10 @@ versori projects activations details --project <project-id> --environment <envir
 ### `versori projects activations list`
 
 
-
+List every end-user in the organisation alongside their activation status on the given
+project environment. Active rows include the ActivationId and the activation's dynamic variables;
+inactive rows show the end-user but leave activation-specific fields blank. Use -o yaml or
+-o json to see the full row including DynamicVariables for active users.
 
 ```sh
 versori projects activations list --project <project-id> --environment <environment-name> [flags]
@@ -138,7 +144,7 @@ versori projects activations list --project <project-id> --environment <environm
 
 Set a single dynamic variable on an end-user's activation. The variable name must be
 declared in the project's DynamicVariablesSchema first (manage it via 'versori projects variables
-set/patch'); unknown keys are rejected by the platform.
+set' or via 'add/update'); unknown keys are rejected by the platform.
 
 The --value flag is parsed as JSON when valid (so '42', 'true', '"hello"', '{"a":1}' all work);
 otherwise it is treated as a raw string. Variable updates take effect immediately at runtime —

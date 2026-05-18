@@ -67,7 +67,8 @@ versori connections list [flags]
 
 
 **Flags:**
-* `--end-user`: Filter by end user ID
+* `--end-user`: Filter by end-user ULID or external ID (external IDs are resolved client-side)
+
 * `-h`, `--help`: help for list
 * `--system`: Filter by system ID
 

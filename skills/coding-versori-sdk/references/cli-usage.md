@@ -127,12 +127,12 @@ versori connections create --project <id> --environment production \
 
 **Default to real credentials.** Generate a `.env.example`, have the user fill in `.env`, and use variable references. Offer `--bypass` as a fallback if the user prefers to skip credentials. The `--template-id` value comes from the `versori projects systems list` output.
 
-### `versori connections list [--system <id>] [--end-user <external-id>]`
+### `versori connections list [--system <id>] [--end-user <ulid-or-external-id>]`
 
-List connections in the current organisation context. Both filters are optional:
+List connections in the current organisation context. Output columns: `ConnectionName / ConnectionId / SystemName / SystemId / BaseUrl` (with `systemName` resolved client-side so you don't have to cross-reference IDs). Both filters are optional:
 
 - `--system <id>` — show only connections on one system
-- `--end-user <external-id>` — show only embedded connections owned by one end-user (the default unfiltered output lists static project-wide connections only; embedded connections only appear when this filter is provided)
+- `--end-user <ulid-or-external-id>` — show only embedded connections owned by one end-user. Accepts either an end-user ULID or your external ID; external IDs are resolved to a ULID client-side before the API call.
 
 ### `versori projects systems update-connection-template --project <id> --template <template-id> [--name <name>] [--dynamic] [--auth-scheme-config-id <id>]`
 
@@ -185,7 +185,7 @@ List all end-users in the current organisation.
 
 ### `versori projects users list --project <id> --environment <env>`
 
-List **activations** (end-user ↔ environment links) on a project environment. Each row shows the end-user's display name, external ID, the activation ID, and the activation's dynamic variables.
+List **every end-user in the organisation** alongside their activation status on the given project environment. Columns: `DisplayName / ExternalId / Status / ActivationId / UserId / CreatedAt`, where `Status` is `active` if the user has an activation on this environment and `inactive` otherwise. Active rows include the activation ID (and the dynamic-variable bag in JSON/YAML output); inactive rows leave those fields blank. Active users sort to the top, then alphabetically by display name.
 
 Alias: `versori projects activations list`.
 
@@ -195,13 +195,15 @@ Show one activation in full, including the connections wired to each environment
 
 Alias: `versori projects activations details`.
 
-### `versori projects users activate --project <id> --environment <env> --external-id <user-external-id> --connection <system-template-id>=<connection-id>... [--variable key=value]... [--variables-file <path>]`
+### `versori projects users activate --project <id> --environment <env> --external-id <user-external-id> [--connection <system-template-id>=<connection-id>]... [--variable key=value]... [--variables-file <path>]`
 
 Create an activation — links an existing end-user to a project environment with one connection per environment system and an optional bag of dynamic variables.
 
-- Pass one `--connection` per environment system (list them with `versori projects systems list -o yaml`; copy each system's `connectionTemplateId`, then the existing connection's ID from `versori connections list --end-user <user-external-id>`).
+- Pass one `--connection` per environment system (list them with `versori projects systems list -o yaml`; copy each system's `connectionTemplateId`, then the existing connection's ID from `versori connections list --end-user <user-external-id>`). **If `--connection` is omitted**, the CLI fetches the environment's connection templates and prompts you to pick a connection per template interactively (auto-selecting when only one candidate exists).
 - `--variable key=value` is repeatable; values are parsed as JSON when valid (so `42`, `true`, `{"a":1}` all work), else treated as strings. `--variables-file` reads a flat JSON object; both can be combined (`--variable` wins on conflicts).
-- Variable keys must already exist in the project's `DynamicVariablesSchema` (manage with `versori projects variables list/add/update/remove`; or `set` for raw JSON-Schema shapes); unknown keys fail server-side validation.
+- Variable keys must already exist in the project's `DynamicVariablesSchema` (manage with `versori projects variables list/add/update/remove`; or `set` for raw JSON-Schema shapes). The CLI pre-flights validation locally before submitting — unknown keys are rejected up-front in a single message with the exact list, alongside the `versori projects variables list --project <id>` command to inspect the schema. **Missing required variables trigger an interactive prompt** (type-aware: boolean, integer, number, string, or raw JSON for object/array) so the activation isn't sent until they're supplied.
+
+Both interactive prompts run on the same TTY the CLI is invoked from. In non-interactive shells (CI, pipes, agent sandboxes) the prompts will block waiting for input — pass `--connection` and all required `--variable` flags explicitly in those contexts.
 
 Alias: `versori projects activations create` (with subcommand aliases `activate`, `new`).
 

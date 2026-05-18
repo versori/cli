@@ -46,7 +46,7 @@ func NewSetVariable(c *config.ConfigFactory) *cobra.Command {
 		Short: "Set a single dynamic variable on an end-user's activation",
 		Long: `Set a single dynamic variable on an end-user's activation. The variable name must be
 declared in the project's DynamicVariablesSchema first (manage it via 'versori projects variables
-set/patch'); unknown keys are rejected by the platform.
+set' or via 'add/update'); unknown keys are rejected by the platform.
 
 The --value flag is parsed as JSON when valid (so '42', 'true', '"hello"', '{"a":1}' all work);
 otherwise it is treated as a raw string. Variable updates take effect immediately at runtime —

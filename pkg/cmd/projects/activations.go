@@ -44,7 +44,7 @@ whichever namespace feels more natural for the task at hand.`,
 	}
 
 	create := users.NewActivate(c)
-	create.Use = "create --project <project-id> --environment <environment-name> --external-id <user-external-id> --connection <system-id>=<connection-id> [--variable key=value]... [--variables-file <path>]"
+	create.Use = "create --project <project-id> --environment <environment-name> --external-id <user-external-id> [--connection <system-template-id>=<connection-id>]... [--variable key=value]... [--variables-file <path>]"
 	create.Aliases = append(create.Aliases, "activate", "new")
 	create.Short = "Create an activation (link an end-user to an environment with its connections + variables)"
 
@@ -56,7 +56,7 @@ whichever namespace feels more natural for the task at hand.`,
 	list := users.NewUsersList(c)
 	list.Use = "list --project <project-id> --environment <environment-name>"
 	list.Aliases = append(list.Aliases, "ls")
-	list.Short = "List activations on a project environment"
+	list.Short = "List end-users on a project environment with their activation status (active/inactive)"
 
 	details := users.NewDetailsActivation(c)
 	details.Use = "details --project <project-id> --environment <environment-name> --external-id <user-external-id>"
