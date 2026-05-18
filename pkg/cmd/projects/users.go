@@ -27,11 +27,11 @@ func NewUsersCommand(c *config.ConfigFactory) *cobra.Command {
 		Short: "Manage users (activations) within a project",
 	}
 
-	list := users.NewUsersList(c)
-	details := users.NewDetailsActivation(c)
-
-	cmd.AddCommand(list)
-	cmd.AddCommand(details)
+	cmd.AddCommand(users.NewUsersList(c))
+	cmd.AddCommand(users.NewDetailsActivation(c))
+	cmd.AddCommand(users.NewActivate(c))
+	cmd.AddCommand(users.NewDeactivate(c))
+	cmd.AddCommand(users.NewSetVariable(c))
 
 	return cmd
 }

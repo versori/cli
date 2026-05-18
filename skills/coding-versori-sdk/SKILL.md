@@ -1,6 +1,6 @@
 ---
 name: coding-versori-sdk
-description: Use this skill whenever the user wants to create, debug, or modify data integration workflows using the versori-run SDK. Triggers include requests to build ETL processes, API integrations, data transformation pipelines, database synchronization, webhooks, file processing, real-time data streaming, or any data integration service. Use when the user mentions Versori, versori-run, or needs help with TypeScript-based integration code. ALSO use this skill — regardless of the user's literal wording — in any workspace that imports `@versori/run` (or lists `@versori/run` in `package.json`) when (a) using generic prompts  such as "implement the plan as specified" prompt with no Versori keywords, or (b) resuming from a `[Previous conversation summary]`. Re-evaluate this skill on every resume; do not inherit a prior agent's skill-evaluation decision.
+description: Use this skill whenever the user wants to create, debug, or modify data integration workflows using the versori-run SDK. Triggers include requests to build ETL processes, API integrations, data transformation pipelines, database synchronization, webhooks, file processing, real-time data streaming, or any data integration service. Use when the user mentions Versori, versori-run, or needs help with TypeScript-based integration code. ALSO use this skill — regardless of the user's literal wording — in any workspace that imports `@versori/run` (or lists `@versori/run` in `package.json` / `deno.json`) when (a) the prompt is a generic instruction such as "implement the plan as specified" with no Versori keywords, (b) the prompt is a Plan-mode "Build" / "implement the plan" invocation, or (c) the prompt begins with `[Previous conversation summary]` or is otherwise resuming a prior session. Re-evaluate this skill on every resume; do not inherit a prior agent's skill-evaluation decision.
 ---
 
 # Versori Integration Skill
@@ -325,8 +325,8 @@ Before writing any workflow code, read `references/sdk-guide.md` for the full Ve
 
 ## Plan-mode behaviour
 
-Plan mode Build button can send a domain-neutral prompt similar to — _"Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself. To-do's from the plan have already been created..."_ — that contains no Versori keywords. To make sure the Build invocation re-triggers this skill, when you author a plan in plan mode for a project that uses `@versori/run`, embed this line at the very top of the plan file (under the title, before any todo list):
+Plan mode's **Build** button can send a domain-neutral prompt similar to — _"Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself. To-do's from the plan have already been created..."_ — that contains no Versori keywords. To make sure the Build invocation re-triggers this skill, when you author a plan in plan mode for a project that uses `@versori/run`, embed this line at the very top of the plan file (under the title, before any todo list):
 
 > **Required reading:** before executing any task below, load `skills/coding-versori-sdk/SKILL.md`. This plan implements code on top of `@versori/run` and depends on its conventions.
 
-If you are an agent resuming from a `[Previous conversation summary]` in a workspace that imports `@versori/run`, re-read this SKILL.md before your first action. The previous agent's skill-evaluation decision does not carry through summaries.
+If you are an agent resuming from a `[Previous conversation summary]`, a fresh chat resume, or a Plan-mode "Build" invocation in a workspace that imports `@versori/run`, re-read this SKILL.md before your first action. The previous agent's skill-evaluation decision does not carry through summaries.

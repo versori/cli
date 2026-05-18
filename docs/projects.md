@@ -10,6 +10,7 @@ The `projects` command (alias: `project`) provides subcommands for the full proj
 
 | Subcommand | Description |
 |---|---|
+| `activations` | Manage activations (end-user → environment links). Alias for the activation-lifecycle commands under `versori projects users`. |
 | `asset` | Manage assets within a project |
 | `create` | Create a new project in the current organisation |
 | `deploy` | Deploy the project to versori |
@@ -26,7 +27,18 @@ The `projects` command (alias: `project`) provides subcommands for the full proj
 | `systems` | Manage systems within a project |
 | `unstar` | Remove the starred flag from a project |
 | `users` | Manage users (activations) within a project |
+| `variables` | Manage a project's DynamicVariablesSchema (declares valid activation-variable keys) |
 | `versions` | Manage versions within a project. |
+
+---
+
+### `versori projects activations`
+
+
+
+See the [activations reference](/docs/projects/activations.md) for detailed subcommands to manage activations (end-user → environment links). alias for the activation-lifecycle commands under `versori projects users`.
+.
+
 
 ---
 
@@ -340,6 +352,16 @@ versori projects unstar <project-id> [flags]
 
 
 See the [users reference](/docs/projects/users.md) for detailed subcommands to manage users (activations) within a project.
+
+
+---
+
+### `versori projects variables`
+
+
+
+See the [variables reference](/docs/projects/variables.md) for detailed subcommands to manage a project's dynamicvariablesschema (declares valid activation-variable keys)
+.
 
 
 ---
