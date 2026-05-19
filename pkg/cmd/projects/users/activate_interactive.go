@@ -70,7 +70,7 @@ func (a *activate) promptForConnections(projectId, envId string) ([]connectionPa
 		if len(conns) == 0 {
 			return nil, fmt.Errorf(
 				"no %s connections exist for system %q.\n"+
-					"  Create one first:  versori connections create --system %s%s --name <name> --field <key>=<value>...",
+					"  Create one first:  versori connections create --system %s%s --name <name> --field <key>=<value> [--field ...]",
 				connectionKindLabel(tpl.Dynamic), tpl.Name, tpl.Id, externalIdFragment(tpl.Dynamic, a.userExternalId))
 		}
 
