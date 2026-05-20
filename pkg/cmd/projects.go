@@ -46,6 +46,8 @@ func newProjectsCommand(c *config.ConfigFactory) *cobra.Command {
 
 	systems := projects.NewSystemsCommand(c)
 	users := projects.NewUsersCommand(c)
+	activations := projects.NewActivationsCommand(c)
+	variables := projects.NewVariablesCommand(c)
 	versions := projects.NewVersionsCommand(c)
 	environments := projects.NewEnvironmentsCommand(c)
 	assetsCmd := projects.NewAssetsCommand(c)
@@ -64,6 +66,8 @@ func newProjectsCommand(c *config.ConfigFactory) *cobra.Command {
 	cmd.AddCommand(filesCmd)
 	cmd.AddCommand(systems)
 	cmd.AddCommand(users)
+	cmd.AddCommand(activations)
+	cmd.AddCommand(variables)
 	cmd.AddCommand(versions)
 	cmd.AddCommand(environments)
 	cmd.AddCommand(assetsCmd)

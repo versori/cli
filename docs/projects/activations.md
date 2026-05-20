@@ -1,23 +1,34 @@
 ---
-title: "projects users"
-description: "Manage users (activations) within a project"
+title: "projects activations"
+description: "Manage activations (end-user → environment links). Alias for the activation-lifecycle commands under `versori projects users`."
 ---
 
+Manage activations on a project environment.
 
+An activation links a previously-created end-user to a specific environment, supplying one
+connection per environment system plus an optional bag of dynamic variables. This is the final
+step in the per-end-user setup chain:
+
+  1. versori users create -e <id> -n <name>                            (create end-user)
+  2. versori connections create ... --external-id <id> ...             (create embedded connection)
+  3. versori projects activations create ... --external-id <id> ...   (THIS COMMAND — link them)
+
+The subcommands below are aliases for the equivalent 'versori projects users …' commands; use
+whichever namespace feels more natural for the task at hand.
 
 ## Subcommands
 
 | Subcommand | Description |
 |---|---|
-| `activate` | Activate an end-user on a project environment |
-| `deactivate` | Deactivate an end-user on a project environment (deletes the activation) |
-| `details` | Get the details for an individual end user of a project |
-| `list` | List all end-users with their activation status (active/inactive) for a project environment |
-| `set-variable` | Set a single dynamic variable on an end-user's activation |
+| `create` | Create an activation (link an end-user to an environment with its connections + variables) |
+| `delete` | Delete an activation (unlinks an end-user from an environment) |
+| `details` | Show one activation's details (connections + variables) |
+| `list` | List end-users on a project environment with their activation status (active/inactive) |
+| `set-variable` | Set a single dynamic variable on an activation |
 
 ---
 
-### `versori projects users activate`
+### `versori projects activations create`
 
 
 Activate an end-user on a project environment. The activation links an end-user to a
@@ -39,7 +50,7 @@ Connections are created with 'versori connections create' (use --external-id <us
 per-end-user connections). Once both exist, this command links them together.
 
 ```sh
-versori projects users activate --project <project-id> --environment <environment-name> --external-id <user-external-id> [--connection <system-template-id>=<connection-id>]... [--variable key=value]... [--variables-file <path>] [flags]
+versori projects activations create --project <project-id> --environment <environment-name> --external-id <user-external-id> [--connection <system-template-id>=<connection-id>]... [--variable key=value]... [--variables-file <path>] [flags]
 ```
 
 
@@ -48,7 +59,7 @@ versori projects users activate --project <project-id> --environment <environmen
 
 * `--environment`: The environment name within the project
 * `-e`, `--external-id`: External ID of the end-user to activate
-* `-h`, `--help`: help for activate
+* `-h`, `--help`: help for create
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
 * `--variable`: Dynamic variable in the form key=value (repeatable). Values are parsed as JSON when valid, else treated as strings. Missing required keys are prompted interactively.
@@ -60,7 +71,7 @@ versori projects users activate --project <project-id> --environment <environmen
 
 ---
 
-### `versori projects users deactivate`
+### `versori projects activations delete`
 
 
 Deactivate an end-user on a project environment by deleting the activation record.
@@ -69,14 +80,14 @@ them and the environment. To re-activate the same end-user, run 'versori project
 again.
 
 ```sh
-versori projects users deactivate --project <project-id> --environment <environment-name> --external-id <user-external-id> [flags]
+versori projects activations delete --project <project-id> --environment <environment-name> --external-id <user-external-id> [flags]
 ```
 
 
 **Flags:**
 * `--environment`: The environment name within the project
 * `-e`, `--external-id`: External ID of the end-user to deactivate
-* `-h`, `--help`: help for deactivate
+* `-h`, `--help`: help for delete
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
 
@@ -84,13 +95,13 @@ versori projects users deactivate --project <project-id> --environment <environm
 
 ---
 
-### `versori projects users details`
+### `versori projects activations details`
 
 
 
 
 ```sh
-versori projects users details --project <project-id> --environment <environment-name> --external-id <user-id> [flags]
+versori projects activations details --project <project-id> --environment <environment-name> --external-id <user-external-id> [flags]
 ```
 
 
@@ -105,7 +116,7 @@ versori projects users details --project <project-id> --environment <environment
 
 ---
 
-### `versori projects users list`
+### `versori projects activations list`
 
 
 List every end-user in the organisation alongside their activation status on the given
@@ -114,7 +125,7 @@ inactive rows show the end-user but leave activation-specific fields blank. Use 
 -o json to see the full row including DynamicVariables for active users.
 
 ```sh
-versori projects users list --project <project-id> --environment <environment-name> [flags]
+versori projects activations list --project <project-id> --environment <environment-name> [flags]
 ```
 
 
@@ -128,7 +139,7 @@ versori projects users list --project <project-id> --environment <environment-na
 
 ---
 
-### `versori projects users set-variable`
+### `versori projects activations set-variable`
 
 
 Set a single dynamic variable on an end-user's activation. The variable name must be
@@ -140,7 +151,7 @@ otherwise it is treated as a raw string. Variable updates take effect immediatel
 no redeploy required.
 
 ```sh
-versori projects users set-variable --project <project-id> --environment <environment-name> --external-id <user-external-id> --name <variable-name> --value <value> [flags]
+versori projects activations set-variable --project <project-id> --environment <environment-name> --external-id <user-external-id> --name <variable-name> --value <value> [flags]
 ```
 
 
