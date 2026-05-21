@@ -71,6 +71,10 @@ func GetRootCommand() *cobra.Command {
 	executionPoolsCommand := newExecutionPoolsCommand(configFactory)
 	rootCmd.AddCommand(executionPoolsCommand)
 
+	// notifications command
+	notificationsCommand := newNotificationsCommand(configFactory)
+	rootCmd.AddCommand(notificationsCommand)
+
 	// skills command
 	skillsCommand := newSkillsCommand(configFactory)
 	rootCmd.AddCommand(skillsCommand)
