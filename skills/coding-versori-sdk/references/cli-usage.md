@@ -586,14 +586,27 @@ Consider using `--dry-run` first when intent is ambiguous.
 
 ## The `.versori` File
 
-When you run `versori project sync`, the CLI creates a `.versori` file in the synced directory. This file contains:
+`versori projects sync` writes a JSON `.versori` file into the synced directory containing the project's `project_id` and the `context` active at sync time. Any command that accepts `--project` will read it from `.versori` when the flag is omitted.
 
-- `project_id` — the project's ULID
-- `context` — the CLI context that was active when the project was synced
+**Resolution rules** (apply uniformly to every `--project` command):
 
-When a `.versori` file is present in the current directory, the `--project` flag is **optional** for most commands — the CLI reads the project ID automatically. This applies to: `deploy`, `save`, `sync`, `systems list`, `systems bootstrap`, `assets list`, `assets upload`, `assets download`, `logs`, `proxy`, and `versions list`.
+| State of cwd / flag | Behavior |
+|---|---|
+| No `.versori` in cwd | `--project` is required; commands without it error out. |
+| `.versori` present, `--project` omitted | `.versori`'s `project_id` is used. |
+| `.versori` present, `--project` matches | The flag is used; no warning. |
+| `.versori` present, `--project` differs | **`--project` wins**; a `warning: --project … overrides .versori project …` line is written to stderr. |
+| `.versori.context` differs from the active CLI context | The **active context wins**; a `warning: active context … overrides .versori context …` line is written to stderr. The project_id is still used (a re-synced project keeps its ULID across contexts). |
 
-**Important:** The `context` stored in `.versori` must match the current CLI context. If you switch contexts, the `.versori` file from a different context will not work — you need to re-sync or switch back.
+Warnings go to stderr, so JSON / piped output on stdout stays clean.
+
+**Agent: before invoking any `--project` command, verify cwd matches the intended target.** One-liner check:
+
+```bash
+cat .versori 2>/dev/null || echo '(no .versori in cwd)'
+```
+
+If `.versori` disagrees with the project the user asked about, either `cd` to the correct synced directory or `cd ~` first so the explicit `--project` runs without a stderr warning that may confuse downstream parsing.
 
 ## Workflow
 

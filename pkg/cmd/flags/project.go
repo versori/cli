@@ -40,11 +40,15 @@ func (p *ProjectId) GetFlagOrDie(dir string) string {
 	return projectId
 }
 
-// GetProjectIDFromDir returns the project ID from the .versori file or the project flag.
-// If .versori does not exist, the flag value is returned (empty string if unset).
-// If .versori exists, its context must match the current context or the process exits with an error.
-// If .versori exists and the flag is explicitly set to a differing value, the process exits with an error.
-// If neither are set, it returns an empty string.
+// GetProjectIDFromDir resolves the project ID for a command using the following precedence:
+//
+//  1. No .versori in dir: the --project flag value is returned (empty string if unset).
+//  2. .versori present, --project unset: the file's project_id is returned.
+//  3. .versori present, --project set: --project WINS. A warning is written to stderr
+//     when the two differ so accidental cross-project work stays visible.
+//  4. .versori's context differs from the active CLI context: the active context wins.
+//     A warning is written to stderr (the project_id may still be valid in the active
+//     context, e.g. a project that's been re-synced under a new context).
 func (p *ProjectId) GetProjectIDFromDir(dir string) string {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -56,13 +60,11 @@ func (p *ProjectId) GetProjectIDFromDir(dir string) string {
 	v, err := ReadVersoriConfig(versoriPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// p is nil or empty so default to empty string
-			// it will be up to the caller to decide what to do with it
+			// No .versori file: defer to the flag (or empty if unset / nil receiver).
 			if p == nil {
 				return ""
 			}
 
-			// return the flag value if file is not found
 			return string(*p)
 		}
 
@@ -75,14 +77,19 @@ func (p *ProjectId) GetProjectIDFromDir(dir string) string {
 
 	currentContext := config.CurrentContext.Name
 	if v.Context != currentContext {
-		utils.NewExitError().WithMessage(fmt.Sprintf("current context %q does not match .versori context %q", currentContext, v.Context)).Done()
+		fmt.Fprintf(os.Stderr, "warning: active context %q overrides .versori context %q (in %s)\n",
+			currentContext, v.Context, absDir)
 	}
 
-	// Only validate the flag value if it was explicitly provided.
-	if p != nil && *p != "" && string(*p) != v.ProjectId {
-		utils.NewExitError().WithMessage(fmt.Sprintf("--project %q does not match .versori project %q", *p, v.ProjectId)).Done()
+	// Explicit --project wins over .versori; warn on divergence so it doesn't go unnoticed.
+	if p != nil && *p != "" {
+		if string(*p) != v.ProjectId {
+			fmt.Fprintf(os.Stderr, "warning: --project %q overrides .versori project %q (in %s)\n",
+				string(*p), v.ProjectId, absDir)
+		}
+
+		return string(*p)
 	}
 
-	// .versori is the source of truth once we reach here.
 	return v.ProjectId
 }
