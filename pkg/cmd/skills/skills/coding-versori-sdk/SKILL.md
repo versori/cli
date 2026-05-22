@@ -218,8 +218,9 @@ Rules:
 
 ## CLI Commands
 
-Use the `versori` CLI when the user wants to list projects, create projects, pull down existing code, switch contexts, bootstrap systems, create connections, manage project assets, or deploy.
-See `references/cli-usage.md` for all commands, options, deployment safety guidelines, and the recommended `.gitignore`.
+Use the `versori` CLI for any operation that touches the Versori platform: listing / creating / syncing / starring projects, switching contexts, bootstrapping systems, creating or listing connections, uploading or listing project assets, deploying, **viewing or tailing workflow logs**, **diagnosing failed executions**, managing notification channels and their project links, managing activations, end-users, or project / activation variables, and listing or saving project files.
+
+**Before running any `versori` command, read `references/cli-usage.md` first.** It is the authoritative source for command names, required and optional flags, defaults, output formats, and pre-flight checks for this CLI. Do not run `versori --help` to discover commands and do not guess flag names — load the reference and use the documented invocation. Only fall back to `versori <command> --help` if the reference is genuinely silent on a command you need.
 
 **Run `versori` commands outside any sandbox.** If your environment wraps shell commands in a network-restricted sandbox (Cursor agent mode, Claude Code sandbox, etc.), `versori` calls will fail with a 403 because the CLI authenticates against the Versori API. Run these commands unsandboxed — e.g. in Claude Code use the "run without sandbox" option, in Cursor disable the command sandbox for this shell. The CLI is safe to run directly; it only talks to the configured Versori API and the user's local project directory.
 
