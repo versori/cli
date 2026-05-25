@@ -600,13 +600,13 @@ Consider using `--dry-run` first when intent is ambiguous.
 
 Warnings go to stderr, so JSON / piped output on stdout stays clean.
 
-**Agent: before invoking any `--project` command, verify cwd matches the intended target.** One-liner check:
+**Agent: before invoking any project-scoped command, make the intended local project directory your cwd when local files or `.versori` defaults matter.** This is especially important for `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links. One-liner check:
 
 ```bash
 cat .versori 2>/dev/null || echo '(no .versori in cwd)'
 ```
 
-If `.versori` disagrees with the project the user asked about, either `cd` to the correct synced directory or `cd ~` first so the explicit `--project` runs without a stderr warning that may confuse downstream parsing.
+If `.versori` disagrees with the project the user asked about, `cd` to the correct synced directory before running the command, or pass the command's explicit `--directory` / `-d` flag and treat that directory as the source of truth. Do not rely on `--project` alone to compensate for being in the wrong project directory: it changes the remote project ID, but it does not change which local files are deployed or which target directory a command inspects.
 
 ## Workflow
 
