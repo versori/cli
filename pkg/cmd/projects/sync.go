@@ -28,6 +28,7 @@ import (
 	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/cmd/projects/assets"
 	"github.com/versori/cli/pkg/utils"
+	"github.com/versori/cli/pkg/versorifile"
 )
 
 type Sync struct {
@@ -117,7 +118,7 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 
 	if !s.dryRun {
 		versoriPath := filepath.Join(fullPath, ".versori")
-		if err := flags.WriteVersoriConfig(versoriPath, &flags.VersoriFile{ProjectId: projectId, Context: s.configFactory.Context.Name}); err != nil {
+		if err := versorifile.Write(versoriPath, &versorifile.VersoriFile{ProjectId: projectId, Context: s.configFactory.Context.Name}); err != nil {
 			utils.NewExitError().WithMessage("failed to write .versori").WithReason(err).Done()
 		}
 	}
