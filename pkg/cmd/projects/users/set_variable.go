@@ -46,7 +46,7 @@ func NewSetVariable(c *config.ConfigFactory) *cobra.Command {
 		Short: "Set a single dynamic variable on an end-user's activation",
 		Long: `Set a single dynamic variable on an end-user's activation. The variable name must be
 declared in the project's DynamicVariablesSchema first (manage it via 'versori projects variables
-set' or via 'add/update'); unknown keys are rejected by the platform.
+add'); unknown keys are pre-flighted locally and rejected before the request is sent.
 
 The --value flag is parsed as JSON when valid (so '42', 'true', '"hello"', '{"a":1}' all work);
 otherwise it is treated as a raw string. Variable updates take effect immediately at runtime —
@@ -71,6 +71,10 @@ no redeploy required.`,
 
 func (s *setVariable) Run(_ *cobra.Command, _ []string) {
 	projectId := s.projectId.GetFlagOrDie(".")
+
+	if err := validateActivationVariableKey(s.configFactory, projectId, s.name); err != nil {
+		utils.NewExitError().WithMessage("set-variable would fail schema validation").WithReason(err).Done()
+	}
 
 	envId := resolveEnvironmentID(s.configFactory, projectId, s.environmentName)
 	activationId := resolveActivationID(s.configFactory, envId, s.userExternalId)

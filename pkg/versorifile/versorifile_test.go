@@ -73,6 +73,25 @@ func TestFromDir(t *testing.T) {
 			t.Fatalf("FromDir: expected error on malformed JSON, got %+v", got)
 		}
 	})
+
+	// The home directory holds the CLI config under `~/.versori/`, so running
+	// a project-scoped command from $HOME used to die trying to JSON-parse the
+	// config directory. FromDir now treats any non-regular `.versori` entry
+	// (directory, socket, …) as absent.
+	t.Run(".versori as a directory is treated as absent", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.Mkdir(filepath.Join(dir, ".versori"), 0o755); err != nil {
+			t.Fatalf("seed dir: %v", err)
+		}
+
+		got, err := FromDir(dir)
+		if err != nil {
+			t.Fatalf("FromDir: unexpected error when .versori is a directory: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("FromDir: expected nil for directory .versori, got %+v", got)
+		}
+	})
 }
 
 func TestWriteRoundTrip(t *testing.T) {

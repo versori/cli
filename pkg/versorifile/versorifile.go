@@ -66,6 +66,11 @@ func Write(path string, v *VersoriFile) error {
 // Use this when "no file" is the expected baseline (e.g. context resolution
 // outside any synced project) and you want to branch on presence without
 // stringly checking os.IsNotExist at every call site.
+//
+// A `.versori` entry that exists but is not a regular file is also treated as
+// absent — the home directory holds the CLI config under `~/.versori/` (a
+// directory), and running a project-scoped command from `$HOME` shouldn't fail
+// trying to JSON-parse that directory.
 func FromDir(dir string) (*VersoriFile, error) {
 	if dir == "" {
 		return nil, nil
@@ -76,7 +81,24 @@ func FromDir(dir string) (*VersoriFile, error) {
 		return nil, err
 	}
 
-	v, err := Read(filepath.Join(absDir, ".versori"))
+	path := filepath.Join(absDir, ".versori")
+
+	info, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	// `.versori` exists but is a directory (or socket, device, etc.) — treat as
+	// absent. The home dir's `~/.versori/` is the canonical example.
+	if !info.Mode().IsRegular() {
+		return nil, nil
+	}
+
+	v, err := Read(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil

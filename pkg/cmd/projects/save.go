@@ -34,6 +34,7 @@ type Save struct {
 	directory     string
 	dryRun        bool
 	uploadAssets  bool
+	confirm       bool
 }
 
 type saveRequest struct {
@@ -55,6 +56,7 @@ func NewSave(c *config.ConfigFactory) *cobra.Command {
 	f.StringVarP(&s.directory, "directory", "d", ".", "The directory containing the project files")
 	f.BoolVar(&s.dryRun, "dry-run", false, "Print files that would be uploaded without actually saving")
 	f.BoolVar(&s.uploadAssets, "assets", false, "Also upload assets from the "+assets.DefaultAssetsDir+" directory")
+	f.BoolVar(&s.confirm, "confirm", false, "Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)")
 
 	return cmd
 }
@@ -70,7 +72,7 @@ func (s *Save) Run(cmd *cobra.Command, args []string) {
 		fullPath = filepath.Join(currentDir, s.directory)
 	}
 
-	projectId := s.projectId.GetFlagOrDie(fullPath)
+	projectId := s.projectId.GetFlagOrDieDestructive(fullPath, "save", s.confirm)
 
 	files, err := utils.CollectFiles(fullPath, s.dryRun)
 	if err != nil {
@@ -107,7 +109,6 @@ func (s *Save) Run(cmd *cobra.Command, args []string) {
 }
 
 func (s *Save) syncAssets(projectId, fullPath string) {
-	orgId := s.configFactory.Context.OrganisationId
 	assetDir := filepath.Join(fullPath, assets.DefaultAssetsDir)
 
 	assetFiles, err := assets.CollectAssetFiles(assetDir)
@@ -130,7 +131,7 @@ func (s *Save) syncAssets(projectId, fullPath string) {
 
 	for _, f := range assetFiles {
 		fmt.Printf("Uploading asset %q...\n", filepath.Base(f))
-		if uploadErr := assets.UploadAssetFile(s.configFactory, orgId, projectId, f, "research/documents"); uploadErr != nil {
+		if uploadErr := assets.UploadAssetFile(s.configFactory, projectId, f, "research/documents"); uploadErr != nil {
 			utils.NewExitError().WithMessage("failed to upload asset").WithReason(uploadErr).Done()
 		}
 		fmt.Printf("Successfully uploaded asset %q\n", filepath.Base(f))

@@ -119,3 +119,133 @@ func TestGetProjectIDFromDir(t *testing.T) {
 		}
 	})
 }
+
+func TestCrossProjectSummary(t *testing.T) {
+	cases := []struct {
+		name   string
+		action string
+		want   []string
+	}{
+		{
+			name:   "sync mentions overwrite and re-pin",
+			action: "sync",
+			want:   []string{"OVERWRITE", "01FLAG", "01FILE", "/dir", "rewrite .versori"},
+		},
+		{
+			name:   "deploy mentions DEPLOYED and target project",
+			action: "deploy",
+			want:   []string{"DEPLOYED", "01FLAG", "01FILE", "/dir"},
+		},
+		{
+			name:   "save mentions SAVED and target project",
+			action: "save",
+			want:   []string{"SAVED", "01FLAG", "01FILE", "/dir"},
+		},
+		{
+			name:   "unknown action falls back to a generic summary",
+			action: "frobnicate",
+			want:   []string{"frobnicate", "01FLAG", "01FILE", "/dir"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := crossProjectSummary(tc.action, "01FLAG", "01FILE", "/dir")
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("summary %q missing %q", got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestRequireCrossProjectConfirm(t *testing.T) {
+	t.Run("no .versori is a no-op", func(t *testing.T) {
+		dir := t.TempDir()
+		stderr := captureStderr(t, func() {
+			requireCrossProjectConfirm(dir, "deploy", "01FLAG", false)
+		})
+		if stderr != "" {
+			t.Errorf("expected no prompt, got %q", stderr)
+		}
+	})
+
+	t.Run("matching .versori is a no-op", func(t *testing.T) {
+		dir := t.TempDir()
+		writeVersori(t, dir, "01SAME", "dev")
+
+		stderr := captureStderr(t, func() {
+			requireCrossProjectConfirm(dir, "deploy", "01SAME", false)
+		})
+		if stderr != "" {
+			t.Errorf("expected no prompt when projects match, got %q", stderr)
+		}
+	})
+
+	t.Run("autoConfirm bypasses the prompt on mismatch", func(t *testing.T) {
+		dir := t.TempDir()
+		writeVersori(t, dir, "01FILE", "dev")
+
+		stderr := captureStderr(t, func() {
+			requireCrossProjectConfirm(dir, "deploy", "01FLAG", true)
+		})
+		if stderr != "" {
+			t.Errorf("expected no prompt under autoConfirm, got %q", stderr)
+		}
+	})
+
+	t.Run("CONFIRM on stdin proceeds without exiting", func(t *testing.T) {
+		dir := t.TempDir()
+		writeVersori(t, dir, "01FILE", "dev")
+
+		withStdin(t, "CONFIRM\n", func() {
+			stderr := captureStderr(t, func() {
+				requireCrossProjectConfirm(dir, "deploy", "01FLAG", false)
+			})
+			if !strings.Contains(stderr, "CROSS-PROJECT DEPLOY") {
+				t.Errorf("expected cross-project banner on stderr, got %q", stderr)
+			}
+			if !strings.Contains(stderr, "01FLAG") || !strings.Contains(stderr, "01FILE") {
+				t.Errorf("expected both project ids in summary, got %q", stderr)
+			}
+		})
+	})
+
+	t.Run("lowercase confirm on stdin also proceeds", func(t *testing.T) {
+		dir := t.TempDir()
+		writeVersori(t, dir, "01FILE", "dev")
+
+		withStdin(t, "confirm\n", func() {
+			_ = captureStderr(t, func() {
+				requireCrossProjectConfirm(dir, "sync", "01FLAG", false)
+			})
+		})
+	})
+}
+
+// withStdin swaps os.Stdin for a pipe pre-loaded with input during fn so
+// requireCrossProjectConfirm can read its typed-CONFIRM line without an
+// interactive terminal.
+func withStdin(t *testing.T, input string, fn func()) {
+	t.Helper()
+
+	original := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatalf("write stdin: %v", err)
+	}
+	_ = w.Close()
+
+	os.Stdin = r
+	defer func() {
+		os.Stdin = original
+		_ = r.Close()
+	}()
+
+	fn()
+}

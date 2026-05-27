@@ -14,9 +14,13 @@
 package flags
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/pflag"
 
@@ -46,6 +50,23 @@ func (p *ProjectId) GetFlagOrDie(dir string) string {
 	}
 
 	config.MaybeApplyVersoriContextForProject(dir, projectId)
+
+	return projectId
+}
+
+// GetFlagOrDieDestructive is GetFlagOrDie plus a typed-confirmation prompt for
+// destructive commands when --project differs from the dir's .versori project_id.
+// Used by deploy/save/sync to make cross-project actions impossible to perform
+// by accident: the existing stderr "warning:" line from GetProjectIDFromDir is
+// easy to miss, especially in CI/agent contexts where stderr is routinely
+// dropped. The prompt requires the user to type CONFIRM (or confirm) literally;
+// agents/scripts can pre-acknowledge with autoConfirm=true (wired to --confirm).
+//
+// action is the verb shown in the prompt ("deploy", "save", "sync") and drives
+// the per-command summary in crossProjectSummary.
+func (p *ProjectId) GetFlagOrDieDestructive(dir, action string, autoConfirm bool) string {
+	projectId := p.GetFlagOrDie(dir)
+	requireCrossProjectConfirm(dir, action, projectId, autoConfirm)
 
 	return projectId
 }
@@ -91,4 +112,77 @@ func (p *ProjectId) GetProjectIDFromDir(dir string) string {
 	}
 
 	return v.ProjectId
+}
+
+// requireCrossProjectConfirm enforces the typed-CONFIRM gate for destructive
+// commands. No-op when the dir has no .versori, when .versori already matches
+// projectId (no cross-project risk), or when autoConfirm is true. Otherwise,
+// prints an action-specific summary and reads a line from stdin; only "CONFIRM"
+// or "confirm" (after trimming) lets the command proceed. Stdin EOF (typical of
+// non-interactive callers that forgot --confirm) aborts with a hint rather than
+// hanging — matches the same agent-safety stance as the rest of the CLI.
+func requireCrossProjectConfirm(dir, action, projectId string, autoConfirm bool) {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to resolve directory").WithReason(err).Done()
+	}
+
+	v, err := versorifile.FromDir(absDir)
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to read .versori").WithReason(err).Done()
+	}
+
+	if v == nil || v.ProjectId == projectId {
+		return
+	}
+
+	if autoConfirm {
+		return
+	}
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintf(os.Stderr, "!! CROSS-PROJECT %s !!\n", strings.ToUpper(action))
+	fmt.Fprintln(os.Stderr, crossProjectSummary(action, projectId, v.ProjectId, absDir))
+	fmt.Fprintln(os.Stderr, "Pass --confirm to skip this prompt in scripts/agents.")
+	fmt.Fprint(os.Stderr, "Type CONFIRM (or confirm) to proceed: ")
+
+	reader := bufio.NewReader(os.Stdin)
+
+	line, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		utils.NewExitError().WithMessage("failed to read confirmation").WithReason(err).Done()
+	}
+
+	if errors.Is(err, io.EOF) && strings.TrimSpace(line) == "" {
+		utils.NewExitError().WithMessage("aborted: stdin closed before confirmation. Pass --confirm to skip the prompt in scripts/agents.").Done()
+	}
+
+	if line := strings.TrimSpace(line); line != "CONFIRM" && line != "confirm" {
+		utils.NewExitError().WithMessage("aborted: confirmation not entered").Done()
+	}
+}
+
+// crossProjectSummary renders a human-readable description of what the command
+// is about to do across two projects. Direction matters: sync writes the
+// remote's files OVER the local dir (and re-pins .versori), while deploy/save
+// upload the local dir's files INTO a different remote project.
+func crossProjectSummary(action, flagProjectId, versoriProjectId, absDir string) string {
+	switch action {
+	case "sync":
+		return fmt.Sprintf(
+			"Project %s will OVERWRITE all files in the existing project (%s) in %s, and rewrite .versori to point at %s.",
+			flagProjectId, versoriProjectId, absDir, flagProjectId)
+	case "deploy":
+		return fmt.Sprintf(
+			"Local files in %s (currently pinned to project %s) will be DEPLOYED as a new version of project %s.",
+			absDir, versoriProjectId, flagProjectId)
+	case "save":
+		return fmt.Sprintf(
+			"Local files in %s (currently pinned to project %s) will be SAVED to project %s.",
+			absDir, versoriProjectId, flagProjectId)
+	default:
+		return fmt.Sprintf(
+			"%s will run against project %s using files from %s (currently pinned to project %s).",
+			action, flagProjectId, absDir, versoriProjectId)
+	}
 }

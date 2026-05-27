@@ -37,6 +37,7 @@ type Deploy struct {
 	description   string
 	dryRun        bool
 	uploadAssets  bool
+	confirm       bool
 	projectId     flags.ProjectId
 }
 
@@ -57,6 +58,7 @@ func NewDeploy(c *config.ConfigFactory) *cobra.Command {
 	flags.StringVar(&d.description, "description", "", "Description of the new version.")
 	flags.BoolVar(&d.dryRun, "dry-run", false, "Print files that would be uploaded without actually deploying")
 	flags.BoolVar(&d.uploadAssets, "assets", false, "Also upload assets from the "+assets.DefaultAssetsDir+" directory")
+	flags.BoolVar(&d.confirm, "confirm", false, "Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)")
 
 	_ = cmd.MarkFlagRequired("environment")
 
@@ -74,7 +76,7 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) {
 		fullPath = filepath.Join(currentDir, d.directory)
 	}
 
-	projectId := d.projectId.GetFlagOrDie(fullPath)
+	projectId := d.projectId.GetFlagOrDieDestructive(fullPath, "deploy", d.confirm)
 
 	if d.versionName == "" {
 		d.versionName = time.Now().UTC().Format("2006-01-02-15-04-05")
@@ -124,7 +126,6 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) {
 }
 
 func (d *Deploy) syncAssets(projectId, fullPath string) {
-	orgId := d.configFactory.Context.OrganisationId
 	assetDir := filepath.Join(fullPath, assets.DefaultAssetsDir)
 
 	assetFiles, err := assets.CollectAssetFiles(assetDir)
@@ -147,7 +148,7 @@ func (d *Deploy) syncAssets(projectId, fullPath string) {
 
 	for _, f := range assetFiles {
 		fmt.Printf("Uploading asset %q...\n", filepath.Base(f))
-		if uploadErr := assets.UploadAssetFile(d.configFactory, orgId, projectId, f, "research/documents"); uploadErr != nil {
+		if uploadErr := assets.UploadAssetFile(d.configFactory, projectId, f, "research/documents"); uploadErr != nil {
 			utils.NewExitError().WithMessage("failed to upload asset").WithReason(uploadErr).Done()
 		}
 		fmt.Printf("Successfully uploaded asset %q\n", filepath.Base(f))

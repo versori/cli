@@ -37,6 +37,7 @@ type Sync struct {
 	directory     string
 	dryRun        bool
 	assets        bool
+	confirm       bool
 }
 
 func NewSync(c *config.ConfigFactory) *cobra.Command {
@@ -56,6 +57,7 @@ WARNING: This will overwrite any local changes`,
 	f.StringVarP(&s.directory, "directory", "d", ".", "The directory to download the project files into")
 	f.BoolVar(&s.dryRun, "dry-run", false, "Print files that would be created/updated/deleted without actually syncing")
 	f.BoolVar(&s.assets, "assets", false, "Also sync project assets, removing any that are no longer part of the project from the "+assets.DefaultAssetsDir+" directory")
+	f.BoolVar(&s.confirm, "confirm", false, "Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)")
 
 	return cmd
 }
@@ -76,7 +78,7 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 		utils.NewExitError().WithMessage("failed to create directory").WithReason(err).Done()
 	}
 
-	projectId := s.projectId.GetFlagOrDie(fullPath)
+	projectId := s.projectId.GetFlagOrDieDestructive(fullPath, "sync", s.confirm)
 
 	project := v1.Project{}
 
@@ -125,9 +127,7 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 }
 
 func (s *Sync) syncAssets(projectId, fullPath string) {
-	orgId := s.configFactory.Context.OrganisationId
-
-	resp, err := assets.ListAssets(s.configFactory, orgId, projectId)
+	resp, err := assets.ListAssets(s.configFactory, projectId)
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to list assets").WithReason(err).Done()
 	}

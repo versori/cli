@@ -215,6 +215,15 @@ Rules:
    is the contract between the code and whoever configures the project.
 5. **Activation variables take effect immediately — no redeploy needed.**
    Mention this when an operator asks "do I need to redeploy to change X?".
+6. **Declare the schema before setting any value.** Activation variables live in
+   the project's `DynamicVariablesSchema`. Both `versori projects users activate
+   --variable` and `versori projects users set-variable` pre-flight against the
+   schema and refuse keys that aren't declared — there is no auto-declare on
+   first use. The required ordering for any new variable is:
+   1. `versori projects variables add --project <id> --name <key> --type <type>`
+   2. then either `--variable <key>=<value>` on `activate`, or
+      `versori projects users set-variable --name <key> --value <value>` on an
+      existing activation.
 
 ## CLI Commands
 
@@ -223,6 +232,8 @@ Use the `versori` CLI for any operation that touches the Versori platform: listi
 **Before running any `versori` command, read `references/cli-usage.md` first.** It is the authoritative source for command names, required and optional flags, defaults, output formats, and pre-flight checks for this CLI. Do not run `versori --help` to discover commands and do not guess flag names — load the reference and use the documented invocation. Only fall back to `versori <command> --help` if the reference is genuinely silent on a command you need.
 
 **Before running any project-scoped `versori` command, switch to the intended local project directory when local files or `.versori` defaults matter.** Do not run from an unrelated synced directory and rely on `--project` to compensate: `--project` changes the remote project ID, but commands such as `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links may still read local files or `.versori` from the current/target directory. If operating on a different project, `cd` there first (or pass the command's explicit `--directory`/`-d` and use that directory consistently), then run the CLI command.
+
+**Always pass `--confirm` on `deploy`, `save`, and `sync`.** The agent workflow already verifies the working directory before invoking these commands — either by `cd`'ing into the synced project dir (per the paragraph above) or by passing `--directory`/`-d` explicitly. `--confirm` is a mandatory flag for agent-driven invocations of these three commands; treat it as required, not optional, and do not attempt to drive any interactive confirmation that appears without it.
 
 **Run `versori` commands outside any sandbox.** If your environment wraps shell commands in a network-restricted sandbox (Cursor agent mode, Claude Code sandbox, etc.), `versori` calls will fail with a 403 because the CLI authenticates against the Versori API. Run these commands unsandboxed — e.g. in Claude Code use the "run without sandbox" option, in Cursor disable the command sandbox for this shell. The CLI is safe to run directly; it only talks to the configured Versori API and the user's local project directory.
 

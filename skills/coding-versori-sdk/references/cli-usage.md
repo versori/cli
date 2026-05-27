@@ -24,6 +24,9 @@ Many commands open an interactive prompt when a flag or positional is omitted. *
 | `versori context rm <context-name>` | positional `<context-name>` | `versori context list` |
 | `versori projects create` | `--name` | n/a (user-supplied) |
 | `versori projects details <project-id>` | positional `<project-id>` | `versori projects list -o json` |
+| `versori projects deploy` | `--confirm` | n/a |
+| `versori projects save` | `--confirm` | n/a |
+| `versori projects sync` | `--confirm` | n/a |
 | `versori projects versions create` | `--project` (when not in a `.versori` dir) | `versori projects list -o json` |
 | `versori projects versions pull` | `--project`, `--version` | `versori projects list -o json` / `versori projects versions list --project <id> -o json` |
 | `versori projects variables add` | `--name` (+ `--type` / `--field` for structural shapes) | see the command's full entry below |
@@ -67,6 +70,8 @@ Download project files from the Versori platform to a local directory.
 **WARNING: `sync` WILL DELETE any local files in the target directory that are not present in the platform.** Always use `--dry-run` first to preview what will be updated or deleted before executing for real.
 
 Use this when the user wants to pull down an existing project to edit locally. After syncing, the user can edit the code and redeploy.
+
+**Cross-project safety.** When `--project` differs from the target directory's `.versori`, `sync` runs an interactive confirmation step before overwriting the directory and re-pinning `.versori`. The step is a human-only safeguard — **agents must always pass `--confirm` on `sync`**; without it the command blocks on stdin in non-interactive contexts. The dir checked is the resolved `--directory` (defaults to cwd), so passing `--directory <path>` shifts the check to `<path>/.versori`.
 
 ### `versori projects systems list --project <id> --environment <env>`
 
@@ -255,6 +260,8 @@ versori projects users activate --project <id> --environment production \
 
 Set a single dynamic variable on an existing activation. `--value` is parsed as JSON when valid, else treated as a string. Variable updates take effect at runtime immediately — no redeploy.
 
+**Schema must be declared first.** The `--name` key must already exist in the project's `DynamicVariablesSchema` — declare it with `versori projects variables add --project <id> --name <key> --type <type>` before calling `set-variable`. The CLI pre-flights locally and exits with a clear error pointing at `versori projects variables list` / `add` if the key is unknown, so an unknown key never reaches the platform.
+
 Alias: `versori projects activations set-variable`.
 
 ### `versori projects users deactivate --project <id> --environment <env> --external-id <user-external-id>`
@@ -271,6 +278,8 @@ The schema declares which dynamic-variable keys end-user activations on this pro
 - **Low-level** (`get` / `set`) — operate on the raw JSON Schema. Use only when an advanced JSON-Schema shape is needed (e.g. `enum`, `default`, nested `object`, `patternProperties`) or to bulk-import a hand-crafted schema in CI.
 
 The high-level commands GET-modify-PUT the schema under the hood, so extra JSON-Schema fields previously added via `set` (`enum`, `default`, nested object properties, etc.) are preserved when you `update` a variable without re-specifying its `--type`.
+
+**Schema-first ordering.** Both `versori projects users activate --variable` and `versori projects users set-variable` pre-flight against this schema and refuse keys that aren't declared. Always run `versori projects variables add` (or `set`) before any activation supplies a value for a new key — there is no "auto-declare on first use".
 
 ### `versori projects variables list --project <id>`
 
@@ -404,6 +413,8 @@ Deploy a project and upload the project asset files as well.
 - Version: Can be left empty and the CLI will generate a name based on the current timestamp.
 
 Add `--dry-run` to show what would happen without executing.
+
+**Cross-project safety.** When `--project` differs from the target directory's `.versori`, `deploy` runs an interactive confirmation step before uploading the local files as a new version of the other project. The step is a human-only safeguard — **agents must always pass `--confirm` on `deploy`**; without it the command blocks on stdin in non-interactive contexts. The dir checked is the resolved `--directory` (defaults to cwd), so passing `--directory <path>` shifts the check to `<path>/.versori`. The same gate (and the same agent rule) applies to `versori projects save`.
 
 ### `versori projects logs --environment <env> [--project <id>] [--since <duration>] [--limit <n>] [--search <query>]`
 
@@ -599,6 +610,8 @@ Consider using `--dry-run` first when intent is ambiguous.
 | `.versori.context` differs from the active CLI context | The **active context wins**; a `warning: active context … overrides .versori context …` line is written to stderr. The project_id is still used (a re-synced project keeps its ULID across contexts). |
 
 Warnings go to stderr, so JSON / piped output on stdout stays clean.
+
+**Destructive commands have an additional gate.** For `versori projects deploy`, `save`, and `sync`, the stderr warning above isn't enough on its own — those commands write project state and a missed warning can mean uploading the wrong source into a remote project (or wiping local files for a re-pin). When `--project` differs from the dir's `.versori`, these commands run an interactive confirmation step before proceeding. **Agents must always pass `--confirm`** on `deploy` / `save` / `sync` — the confirmation is human-only and blocks on stdin in non-interactive contexts. The "dir" here is the resolved `--directory` (defaults to cwd), so `--directory <path>` shifts the check to `<path>/.versori`. Read-only commands (`assets list`, `systems list`, `variables list`, `logs`, etc.) keep the stderr-warning-only behaviour.
 
 **Agent: before invoking any project-scoped command, make the intended local project directory your cwd when local files or `.versori` defaults matter.** This is especially important for `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links. One-liner check:
 

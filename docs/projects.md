@@ -81,6 +81,8 @@ versori projects deploy [--project <project-id>] --environment <env> [--director
 
 **Flags:**
 * `--assets`: Also upload assets from the versori-research directory
+* `--confirm`: Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)
+
 * `--description`: Description of the new version.
 * `-d`, `--directory`: The directory containing the project files
 * `--dry-run`: Print files that would be uploaded without actually deploying
@@ -269,6 +271,8 @@ versori projects save [--project <project-id>] [--directory <directory>] [flags]
 
 **Flags:**
 * `--assets`: Also upload assets from the versori-research directory
+* `--confirm`: Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)
+
 * `-d`, `--directory`: The directory containing the project files
 * `--dry-run`: Print files that would be uploaded without actually saving
 * `-h`, `--help`: help for save
@@ -309,6 +313,8 @@ versori projects sync [--project <project-id>] [--directory <directory>]
 
 **Flags:**
 * `--assets`: Also sync project assets, removing any that are no longer part of the project from the versori-research directory
+
+* `--confirm`: Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)
 
 * `-d`, `--directory`: The directory to download the project files into
 * `--dry-run`: Print files that would be created/updated/deleted without actually syncing
