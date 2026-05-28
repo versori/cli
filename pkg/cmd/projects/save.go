@@ -34,7 +34,6 @@ type Save struct {
 	directory     string
 	dryRun        bool
 	uploadAssets  bool
-	confirm       bool
 }
 
 type saveRequest struct {
@@ -56,7 +55,6 @@ func NewSave(c *config.ConfigFactory) *cobra.Command {
 	f.StringVarP(&s.directory, "directory", "d", ".", "The directory containing the project files")
 	f.BoolVar(&s.dryRun, "dry-run", false, "Print files that would be uploaded without actually saving")
 	f.BoolVar(&s.uploadAssets, "assets", false, "Also upload assets from the "+assets.DefaultAssetsDir+" directory")
-	f.BoolVar(&s.confirm, "confirm", false, "Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)")
 
 	return cmd
 }
@@ -72,7 +70,7 @@ func (s *Save) Run(cmd *cobra.Command, args []string) {
 		fullPath = filepath.Join(currentDir, s.directory)
 	}
 
-	projectId := s.projectId.GetFlagOrDieDestructive(fullPath, "save", s.confirm)
+	projectId := s.projectId.GetFlagOrDie(fullPath)
 
 	files, err := utils.CollectFiles(fullPath, s.dryRun)
 	if err != nil {

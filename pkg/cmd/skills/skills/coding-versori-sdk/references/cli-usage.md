@@ -24,9 +24,7 @@ Many commands open an interactive prompt when a flag or positional is omitted. *
 | `versori context rm <context-name>` | positional `<context-name>` | `versori context list` |
 | `versori projects create` | `--name` | n/a (user-supplied) |
 | `versori projects details <project-id>` | positional `<project-id>` | `versori projects list -o json` |
-| `versori projects deploy` | `--confirm` | n/a |
-| `versori projects save` | `--confirm` | n/a |
-| `versori projects sync` | `--confirm` | n/a |
+| `versori projects sync` | `--confirm` once the dry-run pass is reviewed (dry-run is the default) | n/a |
 | `versori projects versions create` | `--project` (when not in a `.versori` dir) | `versori projects list -o json` |
 | `versori projects versions pull` | `--project`, `--version` | `versori projects list -o json` / `versori projects versions list --project <id> -o json` |
 | `versori projects variables add` | `--name` (+ `--type` / `--field` for structural shapes) | see the command's full entry below |
@@ -67,11 +65,13 @@ versori projects details 01KH6HD... -o json
 
 Download project files from the Versori platform to a local directory.
 
-**WARNING: `sync` WILL DELETE any local files in the target directory that are not present in the platform.** Always use `--dry-run` first to preview what will be updated or deleted before executing for real.
+**WARNING: `sync` WILL DELETE any local files in the target directory that are not present in the platform.**
 
 Use this when the user wants to pull down an existing project to edit locally. After syncing, the user can edit the code and redeploy.
 
-**Cross-project safety.** When `--project` differs from the target directory's `.versori`, `sync` runs an interactive confirmation step before overwriting the directory and re-pinning `.versori`. The step is a human-only safeguard — **agents must always pass `--confirm` on `sync`**; without it the command blocks on stdin in non-interactive contexts. The dir checked is the resolved `--directory` (defaults to cwd), so passing `--directory <path>` shifts the check to `<path>/.versori`.
+**`sync` is dry-run by default.** Without `--confirm`, sync only prints the create / update / delete diff and exits — no files are written, `.versori` is not re-pinned. Pass `--confirm` to perform the actual sync. `--dry-run` is still accepted for explicitness; if both `--dry-run` and `--confirm` are passed, `--dry-run` wins.
+
+**Agent workflow:** always run sync without `--confirm` first, show the diff (especially deletions) to the user, and only re-invoke with `--confirm` once they're happy — or when the diff is clearly safe (no deletions, only expected new/updated files from a previous deploy). The default dry-run is the safety net; never call `versori projects sync --confirm` as a first step against an unknown directory state.
 
 ### `versori projects systems list --project <id> --environment <env>`
 
@@ -414,8 +414,6 @@ Deploy a project and upload the project asset files as well.
 
 Add `--dry-run` to show what would happen without executing.
 
-**Cross-project safety.** When `--project` differs from the target directory's `.versori`, `deploy` runs an interactive confirmation step before uploading the local files as a new version of the other project. The step is a human-only safeguard — **agents must always pass `--confirm` on `deploy`**; without it the command blocks on stdin in non-interactive contexts. The dir checked is the resolved `--directory` (defaults to cwd), so passing `--directory <path>` shifts the check to `<path>/.versori`. The same gate (and the same agent rule) applies to `versori projects save`.
-
 ### `versori projects logs --environment <env> [--project <id>] [--since <duration>] [--limit <n>] [--search <query>]`
 
 Fetch workflow execution logs for one project + environment. Output is **always one JSON object per line** on stdout, ordered ascending by time — the global `-o` flag is ignored.
@@ -611,7 +609,7 @@ Consider using `--dry-run` first when intent is ambiguous.
 
 Warnings go to stderr, so JSON / piped output on stdout stays clean.
 
-**Destructive commands have an additional gate.** For `versori projects deploy`, `save`, and `sync`, the stderr warning above isn't enough on its own — those commands write project state and a missed warning can mean uploading the wrong source into a remote project (or wiping local files for a re-pin). When `--project` differs from the dir's `.versori`, these commands run an interactive confirmation step before proceeding. **Agents must always pass `--confirm`** on `deploy` / `save` / `sync` — the confirmation is human-only and blocks on stdin in non-interactive contexts. The "dir" here is the resolved `--directory` (defaults to cwd), so `--directory <path>` shifts the check to `<path>/.versori`. Read-only commands (`assets list`, `systems list`, `variables list`, `logs`, etc.) keep the stderr-warning-only behaviour.
+**`versori projects sync` has an extra safety net: dry-run by default.** Sync's behaviour differs from every other command because it both _writes_ local files (deleting any that aren't in the remote) and _re-pins_ `.versori`. To protect against accidentally clobbering the wrong directory, `sync` is dry-run by default — without `--confirm` it only prints the diff. Always run it once without `--confirm`, eyeball (or show the user) the create / update / delete list, then re-run with `--confirm` to apply.
 
 **Agent: before invoking any project-scoped command, make the intended local project directory your cwd when local files or `.versori` defaults matter.** This is especially important for `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links. One-liner check:
 
@@ -696,11 +694,11 @@ versori project deploy -d . --project=01KH6HD... --environment production --vers
 versori projects list
 # → 01KH6HD...  shopify-sync
 
-# 2. Dry-run sync to preview changes
-versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --dry-run
-
-# 3. On confirmation, sync for real file and the projects assets if there are any
+# 2. Dry-run sync to preview changes (dry-run is the default)
 versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets
+
+# 3. On confirmation, sync for real with --confirm
+versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets --confirm
 
 # 3.5. Ensure .gitignore exists (create with recommended content if missing)
 #      This prevents node_modules/, dist/, .env from being deployed
@@ -727,7 +725,7 @@ deno test
 User: "Create a project called 'shopify-sync' and deploy the code I wrote"
 1. Run: versori projects create --name "shopify-sync"
 2. Create a .gitignore to make sure no user files are deleted
-3. Run: versori project sync --project <id> --dry-run /  versori project sync --project <id> to get the .versori file locally
+3. Run: versori project sync --project <id> (dry-run, the default) to preview, then versori project sync --project <id> --confirm to write files and the .versori locally
 4. Note the returned project ID
 5. Run: deno install && deno check src/index.ts (and deno test if applicable) to verify code
 6. Ask: "Created project 01KH6HD... and verified code. Deploy to production now?"
@@ -754,10 +752,10 @@ User: "I want to edit my shopify-sync project but I don't know the ID"
 
 ```
 User: "Pull down project 01KH6HD... to edit locally"
-1. Run: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets --dry-run
-   → shows files that will be updated/deleted
+1. Run: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets
+   → dry-run by default; shows files that will be updated/deleted
 2. "Here's what sync will change. Shall I go ahead?"
-3. On confirmation: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets
+3. On confirmation: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets --confirm
 ```
 
 **Bootstrap systems from research:**

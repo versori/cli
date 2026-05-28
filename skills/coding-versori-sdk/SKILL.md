@@ -69,7 +69,7 @@ main().then().catch((err) => console.error('Failed to run main()', err));
   "type": "module",
   "module": "dist/index.js",
   "dependencies": {
-    "@versori/run": "^0.4.0"
+    "@versori/run": "^0.6.3"
   }
 }
 ```
@@ -233,13 +233,13 @@ Use the `versori` CLI for any operation that touches the Versori platform: listi
 
 **Before running any project-scoped `versori` command, switch to the intended local project directory when local files or `.versori` defaults matter.** Do not run from an unrelated synced directory and rely on `--project` to compensate: `--project` changes the remote project ID, but commands such as `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links may still read local files or `.versori` from the current/target directory. If operating on a different project, `cd` there first (or pass the command's explicit `--directory`/`-d` and use that directory consistently), then run the CLI command.
 
-**Always pass `--confirm` on `deploy`, `save`, and `sync`.** The agent workflow already verifies the working directory before invoking these commands — either by `cd`'ing into the synced project dir (per the paragraph above) or by passing `--directory`/`-d` explicitly. `--confirm` is a mandatory flag for agent-driven invocations of these three commands; treat it as required, not optional, and do not attempt to drive any interactive confirmation that appears without it.
+**Two-step `versori projects sync`.** `sync` is dry-run by default — invoking it without `--confirm` only prints the create / update / delete diff, it does not touch local files or rewrite `.versori`. Always run it once without `--confirm` first, show the user the diff (especially any deletions), and only re-run with `--confirm` once they confirm — or when the diff is clearly safe (no deletions, expected file changes only). Never invoke `versori projects sync --confirm` as a first step; the dry-run pass is the safety net.
 
 **Run `versori` commands outside any sandbox.** If your environment wraps shell commands in a network-restricted sandbox (Cursor agent mode, Claude Code sandbox, etc.), `versori` calls will fail with a 403 because the CLI authenticates against the Versori API. Run these commands unsandboxed — e.g. in Claude Code use the "run without sandbox" option, in Cursor disable the command sandbox for this shell. The CLI is safe to run directly; it only talks to the configured Versori API and the user's local project directory.
 
 **Always confirm before deploying or bootstrapping** unless the user explicitly says "deploy", "ship it", or "go ahead".
 
-**Always dry-run before syncing** — `sync` deletes local files not present in the platform. Show the user the diff and confirm before running for real.
+**Always dry-run before syncing** — `sync` deletes local files not present in the platform. It defaults to dry-run (no `--confirm`); run the dry-run first, show the user the diff, then re-run with `--confirm` once they're happy.
 
 **Always ensure a `.gitignore` exists** — After syncing a project or setting up a new project directory, check if a `.gitignore` file exists. If it doesn't, create one with the recommended content from `references/cli-usage.md` before installing dependencies or deploying. This prevents `node_modules/`, `dist/`, and other local artifacts from being pushed to the platform.
 
@@ -255,7 +255,7 @@ Before writing any code or running CLI commands that require a project ID, deter
 2. **No `.versori` file** — ask the user whether they want to use an existing project or create a new one:
    - **Existing project**: run `versori projects list` to show available projects, let the user pick one, then continue (sync it down if needed).
    - **New project**: run `versori projects create --name <name>` to create a fresh project and use the returned ID.
-   - **Sync project**: run `versori projects sync --project <project-id>` to pull in the project context locally before moving on with the next tasks.
+   - **Sync project**: run `versori projects sync --project <project-id>` (dry-run, the default) to preview what will be written, show the user the diff, then re-run with `--confirm` to actually pull in the project context locally before moving on with the next tasks.
 
 When a `.versori` file is present, most CLI commands (`deploy`, `save`, `sync`, `systems`, `assets`, etc.) automatically read the project ID from it, so the `--project` flag can be omitted.
 

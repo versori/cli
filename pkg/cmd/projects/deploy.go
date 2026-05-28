@@ -37,7 +37,6 @@ type Deploy struct {
 	description   string
 	dryRun        bool
 	uploadAssets  bool
-	confirm       bool
 	projectId     flags.ProjectId
 }
 
@@ -58,7 +57,6 @@ func NewDeploy(c *config.ConfigFactory) *cobra.Command {
 	flags.StringVar(&d.description, "description", "", "Description of the new version.")
 	flags.BoolVar(&d.dryRun, "dry-run", false, "Print files that would be uploaded without actually deploying")
 	flags.BoolVar(&d.uploadAssets, "assets", false, "Also upload assets from the "+assets.DefaultAssetsDir+" directory")
-	flags.BoolVar(&d.confirm, "confirm", false, "Skip the typed-CONFIRM prompt when --project differs from the dir's .versori (assumes you've already verified the directory is correct)")
 
 	_ = cmd.MarkFlagRequired("environment")
 
@@ -76,7 +74,7 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) {
 		fullPath = filepath.Join(currentDir, d.directory)
 	}
 
-	projectId := d.projectId.GetFlagOrDieDestructive(fullPath, "deploy", d.confirm)
+	projectId := d.projectId.GetFlagOrDie(fullPath)
 
 	if d.versionName == "" {
 		d.versionName = time.Now().UTC().Format("2006-01-02-15-04-05")
