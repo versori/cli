@@ -43,9 +43,14 @@ type Asset struct {
 	DownloadURL  string `json:"downloadUrl"`
 }
 
-// ListAssets fetches all assets for the given organisation and project.
-func ListAssets(cf *config.ConfigFactory, orgId, projectId string) (AssetsResponse, error) {
-	requestPath := "assets/organisations/" + orgId + "/" + projectId
+// ListAssets fetches all assets for the project in the current context's organisation.
+//
+// The path uses the :organisation placeholder so the organisation is resolved by
+// NewAIRequest at request time. Reading cf.Context.OrganisationId here would
+// snapshot the value before any .versori-driven context switch (triggered by
+// flags.ProjectId.GetFlagOrDie) has been applied to cf.Context.
+func ListAssets(cf *config.ConfigFactory, projectId string) (AssetsResponse, error) {
+	requestPath := "assets/organisations/:organisation/" + projectId
 
 	var resp AssetsResponse
 
@@ -95,7 +100,11 @@ func DownloadAssetToFile(downloadURL, name, directory string) error {
 
 // UploadAssetFile uploads a single file as a project asset via the signed-URL
 // flow. It mirrors the logic used by the `asset upload` subcommand.
-func UploadAssetFile(cf *config.ConfigFactory, orgId, projectId, filePath, folder string) error {
+//
+// The path uses the :organisation placeholder so the organisation is resolved by
+// NewAIRequest at request time, after any .versori-driven context switch has
+// taken effect.
+func UploadAssetFile(cf *config.ConfigFactory, projectId, filePath, folder string) error {
 	info, err := os.Stat(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to stat file %s: %w", filePath, err)
@@ -114,7 +123,7 @@ func UploadAssetFile(cf *config.ConfigFactory, orgId, projectId, filePath, folde
 		Folder:        folder,
 	}
 
-	requestPath := "assets/organisations/" + orgId + "/" + projectId + "/signed-url"
+	requestPath := "assets/organisations/:organisation/" + projectId + "/signed-url"
 
 	var signedURL signedURLResponse
 

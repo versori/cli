@@ -107,7 +107,6 @@ func (s *Save) Run(cmd *cobra.Command, args []string) {
 }
 
 func (s *Save) syncAssets(projectId, fullPath string) {
-	orgId := s.configFactory.Context.OrganisationId
 	assetDir := filepath.Join(fullPath, assets.DefaultAssetsDir)
 
 	assetFiles, err := assets.CollectAssetFiles(assetDir)
@@ -130,7 +129,7 @@ func (s *Save) syncAssets(projectId, fullPath string) {
 
 	for _, f := range assetFiles {
 		fmt.Printf("Uploading asset %q...\n", filepath.Base(f))
-		if uploadErr := assets.UploadAssetFile(s.configFactory, orgId, projectId, f, "research/documents"); uploadErr != nil {
+		if uploadErr := assets.UploadAssetFile(s.configFactory, projectId, f, "research/documents"); uploadErr != nil {
 			utils.NewExitError().WithMessage("failed to upload asset").WithReason(uploadErr).Done()
 		}
 		fmt.Printf("Successfully uploaded asset %q\n", filepath.Base(f))

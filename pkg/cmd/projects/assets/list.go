@@ -60,10 +60,9 @@ func NewList(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (l *list) Run(cmd *cobra.Command, args []string) {
-	orgId := l.configFactory.Context.OrganisationId
 	projectId := l.projectId.GetFlagOrDie(".")
 
-	resp, err := ListAssets(l.configFactory, orgId, projectId)
+	resp, err := ListAssets(l.configFactory, projectId)
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to list assets").WithReason(err).Done()
 	}

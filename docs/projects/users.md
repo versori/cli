@@ -133,7 +133,7 @@ versori projects users list --project <project-id> --environment <environment-na
 
 Set a single dynamic variable on an end-user's activation. The variable name must be
 declared in the project's DynamicVariablesSchema first (manage it via 'versori projects variables
-set' or via 'add/update'); unknown keys are rejected by the platform.
+add'); unknown keys are pre-flighted locally and rejected before the request is sent.
 
 The --value flag is parsed as JSON when valid (so '42', 'true', '"hello"', '{"a":1}' all work);
 otherwise it is treated as a raw string. Variable updates take effect immediately at runtime —

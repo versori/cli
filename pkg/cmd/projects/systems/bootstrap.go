@@ -85,35 +85,40 @@ func NewBootstrap(c *config.ConfigFactory) *cobra.Command {
 
 func (b *bootstrap) Run(cmd *cobra.Command, args []string) {
 	projectId := b.projectId.GetFlagOrDie(".")
-	orgId := b.configFactory.Context.OrganisationId
 
 	data, err := os.ReadFile(b.file)
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to read file").WithReason(err).Done()
 	}
 
-	body := bootstrapRequest{
-		OrganisationID:  orgId,
-		ProjectID:       projectId,
-		ResearchContext: string(data),
-	}
-
+	var overrides map[string]any
 	if b.systemOverrides != "" {
-		var overrides map[string]any
 		if err := json.Unmarshal([]byte(b.systemOverrides), &overrides); err != nil {
 			utils.NewExitError().WithMessage("invalid --system-overrides JSON").WithReason(err).Done()
 		}
-		body.SystemOverrides = overrides
+	}
+
+	// Build the request before reading OrganisationId: NewAIRequest calls
+	// loadContext, which applies any .versori-driven context switch triggered
+	// by GetFlagOrDie above. Reading Context.OrganisationId beforehand would
+	// snapshot the pre-switch value and bootstrap against the wrong org.
+	req := b.configFactory.
+		NewAIRequest().
+		WithMethod(http.MethodPost).
+		WithPath("assistant/v2/connectors/bootstrap")
+
+	body := bootstrapRequest{
+		OrganisationID:  b.configFactory.Context.OrganisationId,
+		ProjectID:       projectId,
+		ResearchContext: string(data),
+		SystemOverrides: overrides,
 	}
 
 	var resp bootstrapResponse
 
-	err = b.configFactory.
-		NewAIRequest().
-		WithMethod(http.MethodPost).
+	err = req.
 		JSONBody(body).
 		Into(&resp).
-		WithPath("assistant/v2/connectors/bootstrap").
 		Do()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to bootstrap systems").WithReason(err).Done()

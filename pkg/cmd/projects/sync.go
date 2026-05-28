@@ -28,6 +28,7 @@ import (
 	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/cmd/projects/assets"
 	"github.com/versori/cli/pkg/utils"
+	"github.com/versori/cli/pkg/versorifile"
 )
 
 type Sync struct {
@@ -36,6 +37,7 @@ type Sync struct {
 	directory     string
 	dryRun        bool
 	assets        bool
+	confirm       bool
 }
 
 func NewSync(c *config.ConfigFactory) *cobra.Command {
@@ -45,16 +47,20 @@ func NewSync(c *config.ConfigFactory) *cobra.Command {
 		Use:                   "sync [--project <project-id>] [--directory <directory>]",
 		DisableFlagsInUseLine: true,
 		Long: `Sync pulls the project files to the local directory. The --project flag is only required the first time you sync a project.
-WARNING: This will overwrite any local changes`,
-		Short: "Sync pulls the project files to the local directory. WARNING: This will overwrite any local changes",
+
+Sync runs in dry-run mode by default and only prints what would be created, updated, or deleted. Pass --confirm to perform the real sync (which overwrites local changes and re-pins .versori).
+
+WARNING: When --confirm is set, this will overwrite any local changes and delete any local files that are not part of the remote project.`,
+		Short: "Sync pulls the project files to the local directory. Dry-run by default; pass --confirm to actually write.",
 		Run:   s.Run,
 	}
 
 	f := cmd.Flags()
 	s.projectId.SetFlag(f)
 	f.StringVarP(&s.directory, "directory", "d", ".", "The directory to download the project files into")
-	f.BoolVar(&s.dryRun, "dry-run", false, "Print files that would be created/updated/deleted without actually syncing")
+	f.BoolVar(&s.dryRun, "dry-run", false, "Force dry-run (the default when --confirm is omitted). Kept for explicitness; if both --dry-run and --confirm are set, --dry-run wins.")
 	f.BoolVar(&s.assets, "assets", false, "Also sync project assets, removing any that are no longer part of the project from the "+assets.DefaultAssetsDir+" directory")
+	f.BoolVar(&s.confirm, "confirm", false, "Perform the actual sync. Without this flag, sync only prints what would change (dry-run).")
 
 	return cmd
 }
@@ -73,6 +79,16 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 	err = os.MkdirAll(fullPath, 0755)
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to create directory").WithReason(err).Done()
+	}
+
+	// Dry-run is the default; --confirm opts in to the real sync. --dry-run
+	// stays available as an explicit toggle and wins on conflict to keep the
+	// safer behaviour.
+	defaultedToDryRun := !s.dryRun && !s.confirm
+	s.dryRun = s.dryRun || !s.confirm
+
+	if defaultedToDryRun {
+		fmt.Fprintln(os.Stderr, "No --confirm flag: running in dry-run mode. Re-run with --confirm to actually sync.")
 	}
 
 	projectId := s.projectId.GetFlagOrDie(fullPath)
@@ -115,18 +131,19 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 		s.syncAssets(projectId, fullPath)
 	}
 
-	if !s.dryRun {
-		versoriPath := filepath.Join(fullPath, ".versori")
-		if err := flags.WriteVersoriConfig(versoriPath, &flags.VersoriFile{ProjectId: projectId, Context: s.configFactory.Context.Name}); err != nil {
-			utils.NewExitError().WithMessage("failed to write .versori").WithReason(err).Done()
-		}
+	if s.dryRun {
+		fmt.Fprintln(os.Stderr, "Dry-run complete. Re-run with --confirm to apply these changes.")
+		return
+	}
+
+	versoriPath := filepath.Join(fullPath, ".versori")
+	if err := versorifile.Write(versoriPath, &versorifile.VersoriFile{ProjectId: projectId, Context: s.configFactory.Context.Name}); err != nil {
+		utils.NewExitError().WithMessage("failed to write .versori").WithReason(err).Done()
 	}
 }
 
 func (s *Sync) syncAssets(projectId, fullPath string) {
-	orgId := s.configFactory.Context.OrganisationId
-
-	resp, err := assets.ListAssets(s.configFactory, orgId, projectId)
+	resp, err := assets.ListAssets(s.configFactory, projectId)
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to list assets").WithReason(err).Done()
 	}

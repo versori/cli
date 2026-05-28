@@ -23,7 +23,7 @@ The `projects` command (alias: `project`) provides subcommands for the full proj
 | `proxy` | Send an HTTP request to a project's deployed environment |
 | `save` | Save the project files to versori (no deploy) |
 | `star` | Mark a project as a starred reference project for the organisation |
-| `sync` | Sync pulls the project files to the local directory. WARNING: This will overwrite any local changes |
+| `sync` | Sync pulls the project files to the local directory. Dry-run by default; pass --confirm to actually write. |
 | `systems` | Manage systems within a project |
 | `unstar` | Remove the starred flag from a project |
 | `users` | Manage users (activations) within a project |
@@ -300,7 +300,10 @@ versori projects star <project-id> [flags]
 
 
 Sync pulls the project files to the local directory. The --project flag is only required the first time you sync a project.
-WARNING: This will overwrite any local changes
+
+Sync runs in dry-run mode by default and only prints what would be created, updated, or deleted. Pass --confirm to perform the real sync (which overwrites local changes and re-pins .versori).
+
+WARNING: When --confirm is set, this will overwrite any local changes and delete any local files that are not part of the remote project.
 
 ```sh
 versori projects sync [--project <project-id>] [--directory <directory>]
@@ -310,8 +313,10 @@ versori projects sync [--project <project-id>] [--directory <directory>]
 **Flags:**
 * `--assets`: Also sync project assets, removing any that are no longer part of the project from the versori-research directory
 
+* `--confirm`: Perform the actual sync. Without this flag, sync only prints what would change (dry-run).
+
 * `-d`, `--directory`: The directory to download the project files into
-* `--dry-run`: Print files that would be created/updated/deleted without actually syncing
+* `--dry-run`: Force dry-run (the default when --confirm is omitted). Kept for explicitness; if both --dry-run and --confirm are set, --dry-run wins.
 
 * `-h`, `--help`: help for sync
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.

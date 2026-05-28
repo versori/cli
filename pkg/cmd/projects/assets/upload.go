@@ -78,7 +78,6 @@ func NewUpload(c *config.ConfigFactory) *cobra.Command {
 
 func (u *upload) Run(cmd *cobra.Command, args []string) {
 	projectId := u.projectId.GetFlagOrDie(".")
-	orgId := u.configFactory.Context.OrganisationId
 
 	if u.folder != "" && !IsValidFolder(u.folder) {
 		utils.NewExitError().
@@ -107,7 +106,9 @@ func (u *upload) Run(cmd *cobra.Command, args []string) {
 		Folder:        u.folder,
 	}
 
-	requestPath := "assets/organisations/" + orgId + "/" + projectId + "/signed-url"
+	// :organisation is resolved by NewAIRequest after .versori-driven context
+	// switches (triggered by GetFlagOrDie above) have been applied.
+	requestPath := "assets/organisations/:organisation/" + projectId + "/signed-url"
 
 	var signedURL signedURLResponse
 

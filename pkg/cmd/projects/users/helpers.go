@@ -137,3 +137,47 @@ func sortedKeys(m v1.DynamicVariables) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+// validateActivationVariableKey fetches the project's DynamicVariablesSchema and returns a
+// descriptive error if the supplied key isn't declared. Unlike validateActivationVariables, it
+// does not check the schema's `required` list — set-variable updates a single key on an
+// existing activation, so other required keys are already (or aren't) on the activation
+// independently of this call. The platform would reject unknown keys with a generic 4xx; this
+// pre-flight returns a friendlier message pointing at the discovery / declaration commands.
+//
+// Network / parse failures fall through to nil so the API call still happens — the platform
+// has the final say if the local check is inconclusive.
+func validateActivationVariableKey(cf *config.ConfigFactory, projectId, name string) error {
+	raw := json.RawMessage{}
+	err := cf.
+		NewRequest().
+		WithMethod(http.MethodGet).
+		Into(&raw).
+		WithPath("o/:organisation/projects/" + projectId + "/variables").
+		Do()
+	if err != nil {
+		return nil
+	}
+
+	if len(raw) == 0 || string(raw) == "null" {
+		return fmt.Errorf(
+			"project has no DynamicVariablesSchema declared, so variable %q cannot be set.\n"+
+				"  Declare it first:  versori projects variables add --project %s --name %s --type <type>",
+			name, projectId, name)
+	}
+
+	var schema variableSchemaProbe
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return nil
+	}
+
+	if _, declared := schema.Properties[name]; declared {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"variable %q is not declared in the project's DynamicVariablesSchema.\n"+
+			"  Inspect the schema:  versori projects variables list --project %s\n"+
+			"  Declare it first:    versori projects variables add --project %s --name %s --type <type>",
+		name, projectId, projectId, name)
+}

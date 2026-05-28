@@ -2,15 +2,40 @@
 
 ## Index
 
-- **Project lifecycle**: `projects list/create`, `project sync/deploy`, `projects versions list`
+- **Project lifecycle**: `projects list/create/details`, `project sync/deploy`, `projects versions list`
 - **Systems & auth**: `systems create`, `systems add-auth-scheme`, `projects systems bootstrap/list/add/update-connection-template/list-connections/connect/delete-connection-template`
 - **Connections**: `connections create/list`
 - **End-users & activations**: `users create/list`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
 - **Dynamic-variable schema**: `projects variables list/add/update/remove/get/set`
 - **Assets**: `projects assets list/upload/download`
+- **Observability & alerts**: `projects logs`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
 - **Reference material**: `.gitignore`, environment variables, deployment safety, the `.versori` file, workflow recipes, example interactions
 
 ## CLI Commands
+
+### Agent-safe (non-interactive) invocation
+
+Many commands open an interactive prompt when a flag or positional is omitted. **In non-TTY shells (CI, pipes, agent sandboxes) the prompt blocks on stdin and the command does not return.** Always pass the id/flag explicitly and add `--yes` on any command that also confirms before deleting.
+
+| Command | Pass explicitly (omit → prompt blocks) | Source from |
+|---|---|---|
+| `versori context add` | `--name`, `--organisation`, `--jwt` | n/a (user-supplied) |
+| `versori context select <context-name>` | positional `<context-name>` | `versori context list` |
+| `versori context rm <context-name>` | positional `<context-name>` | `versori context list` |
+| `versori projects create` | `--name` | n/a (user-supplied) |
+| `versori projects details <project-id>` | positional `<project-id>` | `versori projects list -o json` |
+| `versori projects sync` | `--confirm` once the dry-run pass is reviewed (dry-run is the default) | n/a |
+| `versori projects versions create` | `--project` (when not in a `.versori` dir) | `versori projects list -o json` |
+| `versori projects versions pull` | `--project`, `--version` | `versori projects list -o json` / `versori projects versions list --project <id> -o json` |
+| `versori projects variables add` | `--name` (+ `--type` / `--field` for structural shapes) | see the command's full entry below |
+| `versori projects users activate` | `--connection` per template + every required `--variable` | see the command's full entry below |
+| `versori systems create` | `--name`, `--domain`, `--template-base-url` | n/a (user-supplied) |
+| `versori users create` | `--display-name`, `--external-id` | n/a (user-supplied) |
+| `versori notifications channels delete` | `--channel-id`, `--yes` | `versori notifications channels list -o json` |
+| `versori notifications project link` | `--channel-id`, `--environment` | `versori notifications channels list -o json` |
+| `versori notifications project unlink` | `--notification-id`, `--environment`, `--yes` | `versori notifications project list --project <id> -o json` |
+
+Rule of thumb: if `--help` shows an id/flag as optional but the command can't proceed without one, that's an interactive-prompt fallback — pass it explicitly.
 
 ### `versori context select <context>`
 
@@ -24,13 +49,29 @@ List all projects in the current context. Use this to discover project IDs when 
 
 Create a new project. Returns a 26-character ULID project ID.
 
+### `versori projects details <project-id>`
+
+Fetch metadata for a single project — name, deployed flag, starred flag, and the list of environments (id, name, public URL, status, provisioner, config, currently deployed version). Returns **metadata only**, not project file contents; to read files use `versori projects files --project <id> -o json` instead.
+
+The id can also be supplied on stdin by passing `-`, e.g. `echo 01KH6HD... | versori projects details -`.
+
+**Agent: always pass the `<project-id>` positional explicitly.** Source the id from `versori projects list -o json` (or the local `.versori` file).
+
+```bash
+versori projects details 01KH6HD... -o json
+```
+
 ### `versori project sync --directory <dir> --project <id>`
 
 Download project files from the Versori platform to a local directory.
 
-**WARNING: `sync` WILL DELETE any local files in the target directory that are not present in the platform.** Always use `--dry-run` first to preview what will be updated or deleted before executing for real.
+**WARNING: `sync` WILL DELETE any local files in the target directory that are not present in the platform.**
 
 Use this when the user wants to pull down an existing project to edit locally. After syncing, the user can edit the code and redeploy.
+
+**`sync` is dry-run by default.** Without `--confirm`, sync only prints the create / update / delete diff and exits — no files are written, `.versori` is not re-pinned. Pass `--confirm` to perform the actual sync. `--dry-run` is still accepted for explicitness; if both `--dry-run` and `--confirm` are passed, `--dry-run` wins.
+
+**Agent workflow:** always run sync without `--confirm` first, show the diff (especially deletions) to the user, and only re-invoke with `--confirm` once they're happy — or when the diff is clearly safe (no deletions, only expected new/updated files from a previous deploy). The default dry-run is the safety net; never call `versori projects sync --confirm` as a first step against an unknown directory state.
 
 ### `versori projects systems list --project <id> --environment <env>`
 
@@ -219,6 +260,8 @@ versori projects users activate --project <id> --environment production \
 
 Set a single dynamic variable on an existing activation. `--value` is parsed as JSON when valid, else treated as a string. Variable updates take effect at runtime immediately — no redeploy.
 
+**Schema must be declared first.** The `--name` key must already exist in the project's `DynamicVariablesSchema` — declare it with `versori projects variables add --project <id> --name <key> --type <type>` before calling `set-variable`. The CLI pre-flights locally and exits with a clear error pointing at `versori projects variables list` / `add` if the key is unknown, so an unknown key never reaches the platform.
+
 Alias: `versori projects activations set-variable`.
 
 ### `versori projects users deactivate --project <id> --environment <env> --external-id <user-external-id>`
@@ -235,6 +278,8 @@ The schema declares which dynamic-variable keys end-user activations on this pro
 - **Low-level** (`get` / `set`) — operate on the raw JSON Schema. Use only when an advanced JSON-Schema shape is needed (e.g. `enum`, `default`, nested `object`, `patternProperties`) or to bulk-import a hand-crafted schema in CI.
 
 The high-level commands GET-modify-PUT the schema under the hood, so extra JSON-Schema fields previously added via `set` (`enum`, `default`, nested object properties, etc.) are preserved when you `update` a variable without re-specifying its `--type`.
+
+**Schema-first ordering.** Both `versori projects users activate --variable` and `versori projects users set-variable` pre-flight against this schema and refuse keys that aren't declared. Always run `versori projects variables add` (or `set`) before any activation supplies a value for a new key — there is no "auto-declare on first use".
 
 ### `versori projects variables list --project <id>`
 
@@ -369,6 +414,151 @@ Deploy a project and upload the project asset files as well.
 
 Add `--dry-run` to show what would happen without executing.
 
+### `versori projects logs --environment <env> [--project <id>] [--since <duration>] [--limit <n>] [--search <query>]`
+
+Fetch workflow execution logs for one project + environment. Output is **always one JSON object per line** on stdout, ordered ascending by time — the global `-o` flag is ignored.
+
+**Required:**
+
+- `--environment <env>` — e.g. `production`, `staging`. The CLI rejects the call if omitted (hard error, no picker fallback).
+
+**Optional:**
+
+- `--project <id>` — defaults from `.versori` when inside a synced project directory.
+- `--since <duration>` — Go duration window from now (default `24h`). Examples: `30s`, `15m`, `2h30m`.
+- `--limit <n>` — cap on returned entries (default `0` = no cap).
+- `--search <query>` — server-side filter; useful for narrowing to one execution by ID, a task name, or an error substring.
+
+**There is no `--follow` / `-f` flag.** Logs are pulled once per invocation. To tail while a workflow runs, poll in a loop:
+
+```bash
+while true; do
+  clear
+  versori projects logs --environment production --since 5m --limit 200
+  sleep 5
+done
+
+# Or with GNU `watch` (on macOS: brew install watch):
+watch -n 5 'versori projects logs --environment production --since 5m --limit 200'
+```
+
+Each entry has these fields:
+
+| Field | Source | Notes |
+|---|---|---|
+| `timestamp` | runtime | ISO 8601 in UTC. |
+| `severity` | the `ctx.log.<level>` call (or runtime) | One of `debug`, `info`, `warn`, `error`. Crashes outside `ctx.log` are emitted by the runtime as `error` entries. |
+| `message` | first arg of `ctx.log.<level>(msg, fields?)` | The static string the workflow code logged. |
+| `fields` | second arg + auto-bound | Always includes `executionId`, `activationId`, `externalUserId` (when available); plus anything bound via `ctx.log.child({...})` or passed per-call. |
+| `error` | runtime | Populated when an exception bubbled up; usually empty for `ctx.log.*` lines. |
+
+#### Diagnosing a workflow failure from logs
+
+When a user reports a broken workflow, **read logs before reading workflow source.** Logs tell you what actually happened (which task, which input, which upstream response); the source only tells you what the code intends to do.
+
+The pattern is _find the error → pull the full execution trace → walk it top-to-bottom → report the failure point with input + upstream response_.
+
+1. **Pull recent errors and warnings.** Start broad enough to cover the reported time:
+
+   ```bash
+   versori projects logs --environment production --since 1h --limit 500 \
+     | jq -c 'select(.severity == "error" or .severity == "warn")'
+   ```
+
+2. **Pick the relevant error and grab its `fields.executionId`.** This is the run that failed. If the entry has only `activationId` and no `executionId`, scope to that instead.
+
+3. **Pull the full trace for that one execution:**
+
+   ```bash
+   versori projects logs --environment production --since 1h --limit 1000 \
+     --search 01KS2T...
+   ```
+
+   Lines come back in ascending time order — read top-to-bottom. The failure is at or near the bottom.
+
+4. **For each line, identify:**
+
+   - **Which task** emitted it (look for `taskId` in fields, or infer from the message).
+   - **What input** went out (the "request" / "payload" log line just before the error — most workflows log the outbound payload).
+   - **What the upstream replied** (the "response" / "status" line, or a runtime HTTP error with status code + body).
+   - **Failure category**: 4xx (input/auth/payload), 5xx (upstream broken), in-workflow parse / mapping bug, or unhandled exception.
+
+5. **Report back with three concrete pieces** before proposing a fix:
+
+   - **Where** — task and timestamp: _"`upsert_product` failed at 16:07:42 (executionId `01KS2T...`)."_
+   - **Why** — proximate cause from the log: _"Mirakl returned 400 with body `attribute 'Brand' is required`."_
+   - **What input caused it** — the offending data: _"The product payload had `attributes: []` — no Brand attribute mapped."_
+
+   Only after that diagnosis, propose a code change.
+
+If logs are empty for the window, the workflow has not been triggered yet — confirm with the user that the source event has actually fired before assuming a runtime issue. If logs show only `info` lines and no error, the failure may be platform-side (deploy mis-configured, connection invalid, dynamic-variable missing) rather than in workflow code.
+
+### `versori notifications channels list`
+
+List notification channels in the current organisation. Use this before creating a new channel to avoid duplicates.
+
+### `versori notifications channels create --name <name> --email <addr> [--cc <addr>]...`
+
+Create an email notification channel for the current organisation. `--email` sets the primary recipient and must be supplied — service-key tokens carry no user identity, so there is no auto-derivation from the active context. Use `--cc` (repeatable) for additional recipients.
+
+**Agent: ask the user for the recipient email address before invoking.** The CLI hard-exits if `--email` is missing — there is no picker fallback, no JWT lookup, and no env-var default.
+
+Channels are organisation-scoped — create once, bind to as many projects/environments as needed.
+
+### `versori notifications channels delete --channel-id <id> [--yes]`
+
+Delete an org-scoped notification channel. Aliases: `rm`, `remove`. Omit `--channel-id` to get an interactive picker of existing channels by name. Confirms before deleting unless `--yes` is passed.
+
+**Agent: always pass both `--channel-id` (from `versori notifications channels list -o json`) and `--yes`.**
+
+**Project bindings using the deleted channel stop firing.** If you want a clean tear-down, unlink the bindings first with `versori notifications project unlink`.
+
+### `versori notifications project list [--project <project-id>] [--environment <name>]`
+
+List notification-channel bindings on a project. Optionally filter by environment name (e.g. `production`). `--project` defaults from `.versori` when inside a synced project directory.
+
+### `versori notifications project link --channel-id <id> --environment <name> [--name <label>] [--project <project-id>]`
+
+Link an existing channel to a project + environment. After linking, issues raised in that environment by workflow code (`ctx.createIssue()` or `.catch()` blocks) trigger an email through the linked channel.
+
+If `--channel-id` is omitted, the CLI fetches the org's channels and shows an interactive picker (label format: `<channel-name>  (<to-address>)`). If `--environment` is omitted and the project has more than one environment, the CLI shows an environment picker (single-env projects auto-select). `--name` defaults to the channel's name.
+
+**Agent: always pass `--channel-id` and `--environment` explicitly.** Source `--channel-id` from `versori notifications channels list -o json`; `--environment` is the human-readable env name (e.g. `production`).
+
+```bash
+versori notifications channels list
+# → 01KS2TWXJYM...  ops-alerts  george@versori.com
+versori notifications project link \
+  --channel-id 01KS2TWXJYM... \
+  --environment production \
+  --name "ops-alerts (production)"
+# → Linked channel "ops-alerts" to environment "production" on project 01KRR... .
+```
+
+### `versori notifications project unlink --notification-id <id> --environment <name> [--project <project-id>] [--yes]`
+
+Remove a project-notification binding (stops alerts; the channel itself stays). Aliases: `rm`, `delete`. Omit `--notification-id` to pick an existing binding from a list by name. Confirms before deleting unless `--yes` is passed. The channel is not deleted; remove it separately with `versori notifications channels delete`.
+
+**Agent: always pass `--notification-id`, `--environment`, and `--yes`.** Source `--notification-id` from `versori notifications project list --project <id> -o json` (the binding's `id`); `--environment` is the human-readable env name.
+
+```bash
+versori notifications project unlink
+# → prompts for env, then for binding to remove, then confirms
+versori notifications project unlink --notification-id 01KS2TX49C... --environment production --yes
+```
+
+Typical setup for issue-driven email alerts:
+
+```bash
+versori notifications channels list                                # check for an existing channel
+versori notifications channels create --name ops-alerts --email ops@yourco.example  # --email is required (ask the user)
+versori notifications project link \
+  --channel-id <id from channels list> \
+  --environment production \
+  --name "ops-alerts (production)"                                 # routes ctx.createIssue() → email
+versori notifications project list                                  # verify the binding
+```
+
 ## Recommended `.gitignore`
 
 Both `sync` and `deploy` respect `.gitignore` — files matched by it will not be deployed or deleted during a sync. Always ensure a `.gitignore` exists in the project directory. Minimum recommended content:
@@ -405,14 +595,29 @@ Consider using `--dry-run` first when intent is ambiguous.
 
 ## The `.versori` File
 
-When you run `versori project sync`, the CLI creates a `.versori` file in the synced directory. This file contains:
+`versori projects sync` writes a JSON `.versori` file into the synced directory containing the project's `project_id` and the `context` active at sync time. Any command that accepts `--project` will read it from `.versori` when the flag is omitted.
 
-- `project_id` — the project's ULID
-- `context` — the CLI context that was active when the project was synced
+**Resolution rules** (apply uniformly to every `--project` command):
 
-When a `.versori` file is present in the current directory, the `--project` flag is **optional** for most commands — the CLI reads the project ID automatically. This applies to: `deploy`, `save`, `sync`, `systems list`, `systems bootstrap`, `assets list`, `assets upload`, `assets download`, `logs`, `proxy`, and `versions list`.
+| State of cwd / flag | Behavior |
+|---|---|
+| No `.versori` in cwd | `--project` is required; commands without it error out. |
+| `.versori` present, `--project` omitted | `.versori`'s `project_id` is used. |
+| `.versori` present, `--project` matches | The flag is used; no warning. |
+| `.versori` present, `--project` differs | **`--project` wins**; a `warning: --project … overrides .versori project …` line is written to stderr. |
+| `.versori.context` differs from the active CLI context | The **active context wins**; a `warning: active context … overrides .versori context …` line is written to stderr. The project_id is still used (a re-synced project keeps its ULID across contexts). |
 
-**Important:** The `context` stored in `.versori` must match the current CLI context. If you switch contexts, the `.versori` file from a different context will not work — you need to re-sync or switch back.
+Warnings go to stderr, so JSON / piped output on stdout stays clean.
+
+**`versori projects sync` has an extra safety net: dry-run by default.** Sync's behaviour differs from every other command because it both _writes_ local files (deleting any that aren't in the remote) and _re-pins_ `.versori`. To protect against accidentally clobbering the wrong directory, `sync` is dry-run by default — without `--confirm` it only prints the diff. Always run it once without `--confirm`, eyeball (or show the user) the create / update / delete list, then re-run with `--confirm` to apply.
+
+**Agent: before invoking any project-scoped command, make the intended local project directory your cwd when local files or `.versori` defaults matter.** This is especially important for `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links. One-liner check:
+
+```bash
+cat .versori 2>/dev/null || echo '(no .versori in cwd)'
+```
+
+If `.versori` disagrees with the project the user asked about, `cd` to the correct synced directory before running the command, or pass the command's explicit `--directory` / `-d` flag and treat that directory as the source of truth. Do not rely on `--project` alone to compensate for being in the wrong project directory: it changes the remote project ID, but it does not change which local files are deployed or which target directory a command inspects.
 
 ## Workflow
 
@@ -489,11 +694,11 @@ versori project deploy -d . --project=01KH6HD... --environment production --vers
 versori projects list
 # → 01KH6HD...  shopify-sync
 
-# 2. Dry-run sync to preview changes
-versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --dry-run
-
-# 3. On confirmation, sync for real file and the projects assets if there are any
+# 2. Dry-run sync to preview changes (dry-run is the default)
 versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets
+
+# 3. On confirmation, sync for real with --confirm
+versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets --confirm
 
 # 3.5. Ensure .gitignore exists (create with recommended content if missing)
 #      This prevents node_modules/, dist/, .env from being deployed
@@ -520,7 +725,7 @@ deno test
 User: "Create a project called 'shopify-sync' and deploy the code I wrote"
 1. Run: versori projects create --name "shopify-sync"
 2. Create a .gitignore to make sure no user files are deleted
-3. Run: versori project sync --project <id> --dry-run /  versori project sync --project <id> to get the .versori file locally
+3. Run: versori project sync --project <id> (dry-run, the default) to preview, then versori project sync --project <id> --confirm to write files and the .versori locally
 4. Note the returned project ID
 5. Run: deno install && deno check src/index.ts (and deno test if applicable) to verify code
 6. Ask: "Created project 01KH6HD... and verified code. Deploy to production now?"
@@ -547,10 +752,10 @@ User: "I want to edit my shopify-sync project but I don't know the ID"
 
 ```
 User: "Pull down project 01KH6HD... to edit locally"
-1. Run: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets --dry-run
-   → shows files that will be updated/deleted
+1. Run: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets
+   → dry-run by default; shows files that will be updated/deleted
 2. "Here's what sync will change. Shall I go ahead?"
-3. On confirmation: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets
+3. On confirmation: versori project sync --directory shopify-sync/01KH6HD... --project 01KH6HD... --assets --confirm
 ```
 
 **Bootstrap systems from research:**

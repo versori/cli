@@ -53,10 +53,9 @@ func NewDownload(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (d *download) Run(cmd *cobra.Command, args []string) {
-	orgId := d.configFactory.Context.OrganisationId
 	projectId := d.projectId.GetFlagOrDie(".")
 
-	resp, err := ListAssets(d.configFactory, orgId, projectId)
+	resp, err := ListAssets(d.configFactory, projectId)
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to list assets").WithReason(err).Done()
 	}

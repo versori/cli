@@ -17,6 +17,7 @@ Reference for generating integration workflows with the Versori Run SDK. Covers 
   - [HTTP Task with Authenticated Connection](#http-task-with-authenticated-connection)
   - [Error Handling](#error-handling)
   - [Accessing Credentials Outside an HTTP Task](#accessing-credentials-outside-an-http-task)
+  - [Logging](#logging)
   - [Creating Issues](#creating-issues)
 - [Durable Workflows](#durable-workflows)
   - [Defining a Durable Workflow](#defining-a-durable-workflow)
@@ -238,6 +239,83 @@ webhook('example')
     })
   );
 ```
+
+### Logging
+
+Use `ctx.log` for structured logging from inside any task. Log lines surface in execution traces and are the primary observability tool for workflows.
+
+#### Levels
+
+Four levels are available. Pick the lowest one that still conveys the right urgency.
+
+| Level | When to use |
+|-------|-------------|
+| `ctx.log.debug(msg, fields?)` | Detail that is only useful while developing or debugging — verbose payload dumps, branch hits, intermediate values. |
+| `ctx.log.info(msg, fields?)` | Normal lifecycle events worth recording in production — "fetched 42 orders", "skipped duplicate", "wrote checkpoint". |
+| `ctx.log.warn(msg, fields?)` | Recoverable problems — the run completed but degraded (retry succeeded after 2 attempts, rate-limited and backed off, optional field missing). |
+| `ctx.log.error(msg, fields?)` | Failure conditions caught and handled — the workflow could not do what it set out to do for this item or batch. |
+
+Always use a static message string and pass dynamic data via the fields object. Never template values into the message. Do not use emojis or colours in log output.
+
+#### Child loggers
+
+`ctx.log.child({ ... })` returns a new logger that automatically attaches the bound fields to every subsequent call. Use it when you are about to emit several related log lines so you do not repeat the same fields each time. Bound values must be strings; per-call fields override child-bound fields with the same key.
+
+```typescript
+const log = ctx.log.child({ orderId, source: 'webhook' });
+log.info('start processing');
+// ...
+log.info('processed', { itemCount: items.length });
+```
+
+#### Automatic context fields
+
+`ctx.log` already carries `executionId`, `activationId`, and `externalUserId` (when available). You do not need to add these manually — the runtime binds them when the context is created. Add your own domain identifiers (`orderId`, `customerId`, `cursor`, etc.) via `child()` or per-call fields.
+
+#### Never log secrets
+
+Do not log raw credentials, access tokens, refresh tokens, API keys, or full request bodies that contain any of the above. If the user explicitly asks for a token or secret to be logged for one-off debugging, you can comply, but remind them it **must be removed before deploying to a customer or production environment**.
+
+#### Where and when to log
+
+- **Around external calls.** Log immediately before and after every call to a third-party endpoint. Include the request payload (if not too large) and the response — status code plus body, or a summarised shape if the body is huge. This is the single highest-value place to log; most integration issues surface here.
+- **Retries.** Log a `warn` on each retry with the attempt number and the reason. Log an `error` (or escalate via an issue) when retries are exhausted.
+- **State transitions.** Log when KV cursors advance, batches complete, or the workflow moves between phases.
+- **Caught errors.** Log inside any `try/catch` or `.catch()` block with the error message and the inputs that caused it. Do not swallow errors silently.
+
+#### Escalating to a human
+
+`ctx.log.error(...)` writes to logs — it does **not** notify anyone. When a human needs to be alerted (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and can trigger email alerts via a configured **notification channel**.
+
+**Setting up email alerts (CLI, end-to-end):**
+
+The pipeline has three pieces: an org-scoped **channel** (the email inbox), a project-scoped **link** (the routing rule that says "this env's issues alert that channel"), and the **issue** itself (created by workflow code via `ctx.createIssue()`). Without a link, `ctx.createIssue()` succeeds but no email is sent — the platform logs `no notifications configured` and drops the alert. All three steps run via CLI:
+
+```bash
+# 1. List existing channels (skip if a suitable one already exists).
+versori notifications channels list
+
+# 2. Create an email channel. --email defaults to the JWT email claim on the
+#    current context, so omit it to alert the user who is logged in.
+versori notifications channels create --name "ops-alerts"
+versori notifications channels create --name "ops-alerts" --email alerts@example.com
+
+# 3. Link the channel to this project + environment.
+#    Omit any flag and the CLI prompts with a picker (channel-name picker, env-name picker).
+versori notifications project link \
+  --channel-id 01KS2TW... \
+  --environment production \
+  --name "ops-alerts (production)"
+
+# 4. Verify the binding.
+versori notifications project list
+```
+
+To tear down: `versori notifications project unlink` removes a single link (channel survives); `versori notifications channels delete` removes the channel itself (and silently breaks any remaining links). Both prompt to confirm unless `--yes` is passed, and both accept either a flag-based ID or an interactive name picker.
+
+See [Creating Issues](#creating-issues) for the full `ctx.createIssue()` API.
+
+---
 
 ### Creating Issues
 
@@ -533,13 +611,17 @@ interface User {
 
 ## Key-Value Storage
 
-KV storage persists data across executions. Scope determines visibility:
+KV storage persists data across executions. Scope determines visibility and lifetime:
 
 | Scope | Visibility |
 |-------|------------|
 | `':execution:'` | Current execution only |
-| `':project:'` | All executions in the project |
-| `':organization:'` | All executions in the organization |
+| `':project:'` | Current activation only — despite the name, this is **activation-scoped**, not project-wide |
+| `':workspace:'` | All activations in the project (the actual project-wide scope) |
+| `':organization:'` | All projects in the organisation |
+| `':user:'` | All activations for the current external user |
+
+For state shared across runs of the same project (cursors, dedupe keys, batch progress), use `':workspace:'`. Reach for `':project:'` only when you want data isolated to a single activation.
 
 ```typescript
 const kv = ctx.openKv(':project:');
@@ -551,9 +633,13 @@ const list = await kv.list(['users']);
 const count = await kv.count(['users']);
 ```
 
+**Keys** can be `string` or `string[]`. Prefer `string[]` for hierarchical data — `list()` and `count()` accept a prefix array and let you enumerate or count everything under a sub-tree (e.g. prefix `['users']` covers `['users', '1']`, `['users', '2']`, ...).
+
+**Values** are automatically JSON-serialised on `set()` and deserialised on `get()`. Pass objects and arrays directly — do not `JSON.stringify` first.
+
 `kv.get()` accepts options to control missing-key behavior:
 
-- `{ default: value }` — return a default value instead of `undefined` when the key is missing
+- `{ defaultValue: value }` — return a default value instead of `undefined` when the key is missing
 - `{ throwOnNotFound: true }` — throw a `KVNotFoundError` when the key is missing
 
 ---
@@ -782,6 +868,8 @@ webhook('id', {
 | HTTP fetch | `ctx.fetch('/path')` (in http task) |
 | Access request | `ctx.request()` (in webhook) |
 
+> Note: `':project:'` is activation-scoped, not project-wide. Use `':workspace:'` for state shared across activations in the same project.
+
 ---
 
 ## Type Signatures
@@ -811,7 +899,7 @@ interface KeyValue {
 ## Best Practices
 
 1. **Give tasks meaningful IDs** — they appear in execution traces and logs.
-2. **Use structured logging** — `ctx.log.info('action', { key: value })`. Use a static message string and pass dynamic data as structured arguments for searchability. Never template the log message. Never use emojis or colors in log messages.
+2. **Use structured logging** — see [Logging](#logging) for levels, child loggers, never-log-secrets, and where/when to log.
 3. **Handle errors with `.catch()`** — improves observability when workflows fail.
 4. **Return data from tasks** — the next task receives it via `ctx.data`.
 5. **Use `http` for API calls** — automatic authentication via connections.
