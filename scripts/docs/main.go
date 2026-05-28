@@ -28,12 +28,16 @@ import (
 )
 
 // Patterns that Mintlify's MDX parser would otherwise mis-read as JSX and refuse
-// to render.
+// to render — or that render correctly in MDX but get stripped by the browser
+// because Mintlify emits raw `<` / `>` inside <code> tags instead of HTML-
+// encoding them.
 //
 //   - mdxPlaceholderRe: bare <placeholder> tokens (e.g. <key>, <project-id>).
 //     The tight character class keeps real autolinks (<https://example.com>)
-//     and shell redirection snippets (`echo <file`) untouched. Wrapped in
-//     backticks so the rendered docs still hint "this is a parameter".
+//     and shell redirection snippets (`echo <file`) untouched. Backslash-
+//     escape both ends so MDX renders them as literal `<placeholder>` text;
+//     wrapping in backticks looks nicer but the browser then treats <id> as
+//     an unknown HTML tag and strips it.
 //   - { and }: MDX treats braces in prose as JS expressions. Backslash-escape
 //     every occurrence so they render as literal punctuation. Handles nested
 //     JSON examples (e.g. '{"a": {"b": 1}}') that a paired-brace regex can't.
@@ -43,9 +47,9 @@ var (
 )
 
 // mdxSafe neutralises markdown content that would otherwise trip Mintlify's MDX
-// (acorn) parser. Applied to free-form prose fields (Description, flag Usage)
-// before they hit the template. Content inside ``` fences is left untouched
-// because MDX treats fenced code as literal.
+// (acorn) parser or get mangled by browser HTML parsing. Applied to free-form
+// prose fields (Description, flag Usage) before they hit the template. Content
+// inside ``` fences is left untouched because MDX treats fenced code as literal.
 func mdxSafe(s string) string {
 	lines := strings.Split(s, "\n")
 	inFence := false
@@ -57,7 +61,7 @@ func mdxSafe(s string) string {
 		if inFence {
 			continue
 		}
-		line = mdxPlaceholderRe.ReplaceAllString(line, "`<$1>`")
+		line = mdxPlaceholderRe.ReplaceAllString(line, `\<$1\>`)
 		line = strings.ReplaceAll(line, "{", `\{`)
 		line = strings.ReplaceAll(line, "}", `\}`)
 		lines[i] = line

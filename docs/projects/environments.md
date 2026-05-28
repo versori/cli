@@ -52,7 +52,7 @@ This command copies the deployment configuration (currently the deployed docker 
 from the source environment to the target environment.
 
 For example, to promote staging to production:
-  versori projects environments promote --project `<id>` --source staging --target production
+  versori projects environments promote --project \<id\> --source staging --target production
 
 ```sh
 versori projects environments promote --project <project-id> --source <source-env> --target <target-env> [flags]

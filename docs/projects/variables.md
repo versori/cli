@@ -33,7 +33,7 @@ Top-level types: string, number, integer, boolean, object, array.
 
 Nested structure for --type object (and --type array --items-type object):
 
-  --field `<path>`:`<type>`[:required]      Repeatable. Path is dot-separated relative to the
+  --field \<path\>:\<type\>[:required]      Repeatable. Path is dot-separated relative to the
                                         container's properties; missing parent objects are
                                         auto-created. Append ':required' to mark the leaf
                                         required on its immediate parent.
@@ -43,7 +43,7 @@ Nested structure for --type object (and --type array --items-type object):
 
 Array element type for --type array:
 
-  --items-type `<type>`                   Element type (one of the top-level types). When
+  --items-type \<type\>                   Element type (one of the top-level types). When
                                         --items-type object, --field paths describe the item
                                         object's properties. Omit to accept any element type.
 
@@ -74,7 +74,7 @@ versori projects variables add --project <project-id> --name <key> [--type <type
 
 **Flags:**
 * `-d`, `--description`: Human-readable description shown in the platform UI
-* `--field`: Sub-field declaration in the form `<path>`:`<type>`[:required] (repeatable; only valid for object/array-of-object variables)
+* `--field`: Sub-field declaration in the form \<path\>:\<type\>[:required] (repeatable; only valid for object/array-of-object variables)
 
 * `-h`, `--help`: help for add
 * `--items-type`: Array element type (only valid with --type array)
@@ -212,15 +212,15 @@ Only the flags you pass are changed — omitting a flag leaves that field untouc
 Behaviour notes:
   --description ""           Clears the description.
   --required=false           Removes the variable from the schema's required[] list.
-  --type `<new>`               Changing the type clears any orphaned JSON-Schema attributes from
+  --type \<new\>               Changing the type clears any orphaned JSON-Schema attributes from
                              the previous type (so a string variable with enum doesn't carry
                              the enum forward after flipping to object). Description and the
                              top-level required flag are preserved.
-  --field `<path>`:`<type>`      For --type object (existing or new), declares / updates a sub-field
+  --field \<path\>:\<type\>      For --type object (existing or new), declares / updates a sub-field
                              at the given dotted path; parent objects auto-create. Pass repeatedly
                              to add multiple. Pre-existing sub-fields not mentioned by --field
                              are preserved (use 'remove' + 'add' for a clean reset).
-  --items-type `<type>`        For --type array, replaces the array element type. If --type was
+  --items-type \<type\>        For --type array, replaces the array element type. If --type was
                              not array previously, you must also pass --type array.
   --strict                   Adds additionalProperties:false to every object node in the current
                              schema (cannot be unset by this command; use 'remove' + 'add' or
@@ -236,7 +236,7 @@ versori projects variables update --project <project-id> --name <key> [--type <t
 
 **Flags:**
 * `-d`, `--description`: New human-readable description
-* `--field`: Sub-field declaration in the form `<path>`:`<type>`[:required] (repeatable; only valid for object or array-of-object variables)
+* `--field`: Sub-field declaration in the form \<path\>:\<type\>[:required] (repeatable; only valid for object or array-of-object variables)
 
 * `-h`, `--help`: help for update
 * `--items-type`: Array element type (only valid when the variable is or becomes array)

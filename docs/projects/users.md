@@ -22,10 +22,10 @@ description: "Manage users (activations) within a project"
 
 Activate an end-user on a project environment. The activation links an end-user to a
 specific connection per environment system, plus an optional bag of dynamic variables that
-workflow code reads via ctx.activation.getVariable('`<key>`').
+workflow code reads via ctx.activation.getVariable('\<key\>').
 
 The number of --connection flags must equal the number of environment systems for the target
-environment (use 'versori projects systems list --project `<id>` --environment `<env>`' to enumerate them).
+environment (use 'versori projects systems list --project \<id\> --environment \<env\>' to enumerate them).
 Omit --connection entirely to be prompted with a picker per environment system — the picker lists
 the user's existing connections matching each system. Same for required dynamic variables: any
 required schema entry not supplied via --variable / --variables-file is prompted interactively.
@@ -34,8 +34,8 @@ Dynamic variables can be supplied inline via repeatable --variable key=value fla
 from a JSON file via --variables-file. Variables are validated against the project's
 DynamicVariablesSchema (manage it with 'versori projects variables set'); unknown keys fail.
 
-End-users themselves are created with 'versori users create -e `<external-id>` -n `<display-name>`'.
-Connections are created with 'versori connections create' (use --external-id `<user>` for embedded
+End-users themselves are created with 'versori users create -e \<external-id\> -n \<display-name\>'.
+Connections are created with 'versori connections create' (use --external-id \<user\> for embedded
 per-end-user connections). Once both exist, this command links them together.
 
 ```sh
@@ -44,7 +44,7 @@ versori projects users activate --project <project-id> --environment <environmen
 
 
 **Flags:**
-* `--connection`: Connection pair `<system-template-id>`=`<connection-id>` (repeatable; one per environment system). Omit to pick interactively.
+* `--connection`: Connection pair \<system-template-id\>=\<connection-id\> (repeatable; one per environment system). Omit to pick interactively.
 
 * `--environment`: The environment name within the project
 * `-e`, `--external-id`: External ID of the end-user to activate
