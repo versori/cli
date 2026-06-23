@@ -34,10 +34,9 @@ func NewDeploy(c *config.ConfigFactory) *cobra.Command {
 	p := &Deploy{configFactory: c}
 
 	cmd := &cobra.Command{
-		Use:     "deploy --project <project-id> --version <version-id> --environment <environment-name>",
-		Short:   "Creates a new version for a project with the files from --directory",
-		Aliases: []string{"push"},
-		Run:     p.Run,
+		Use:   "deploy --project <project-id> --version-id <version-id> --environment <environment-name>",
+		Short: "Deploy an existing project version to an environment (without creating a new version)",
+		Run:   p.Run,
 	}
 
 	flags := cmd.Flags()

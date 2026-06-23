@@ -247,6 +247,41 @@ Use the `versori` CLI for any operation that touches the Versori platform: listi
 
 **Write tests for pure functions** — Whenever you extract logic into pure functions (e.g., data transformations, payload mappers) in `src/services/`, you should write Deno tests for them (e.g., `src/services/mapper.test.ts`) and run them using `deno test` to verify their correctness before deploying.
 
+## Versioning & Deploying
+
+A **version** is an immutable snapshot of the project's files. Deploying makes one version live on an environment. Read `references/cli-usage.md` (the `versions create` / `versions deploy` / `deploy` entries) for full flags before running any of these.
+
+**Save a version whenever a feature or self-contained unit of work is complete.** After you finish a feature, a meaningful refactor, or a working increment — and have validated it locally (`deno check` / `deno test`) — default to creating a version with `versori projects versions create`. This is a cheap, non-deploying checkpoint (it uploads files and records a snapshot; it does **not** make anything live). Do it proactively without waiting to be asked. The only times you skip it:
+
+- the user is about to deploy this same work now (the deploy creates the version — see below), or
+- the user has said they don't want a version / checkpoint.
+
+**Name versions with a consistent, ordered scheme — and always describe them for humans.** Before naming a new version, run `versori projects versions list` and look at what's already there:
+
+- **If the project already has a naming pattern, follow it and increment.** Match whatever the existing versions use — semver (`1.4.2`), a `v`-prefixed counter (`v7`), date-based (`2026-06-23`), etc. — and produce the next value in that sequence. Consistency within a project matters more than which scheme it is.
+- **If there's no established pattern (or it's the first version), use semver starting at `0.0.1`** and bump the digit that matches the size of the change:
+  - **patch** (`0.0.1` → `0.0.2`) — small fixes, tweaks, or internal refactors with no behaviour change.
+  - **minor** (`0.0.2` → `0.1.0`) — new backward-compatible features (e.g. a new webhook or task).
+  - **major** (`0.1.0` → `1.0.0`) — breaking changes or a significant rewrite.
+
+Always put a concise summary of what changed in `--description` whenever the change is non-trivial, so the version list reads like a changelog:
+
+```bash
+versori projects versions create \
+  --name "0.2.0" \
+  --description "New POST /orders webhook that upserts Shopify orders into Snowflake; adds retry on 5xx."
+```
+
+**Don't create a redundant version when deploying right after.** `versori projects deploy` **always uploads the current files and creates a brand-new version**, then makes it live. So:
+
+- If you have **not** already created a version for this exact code, just run `versori projects deploy` (it creates the version for you — pass `--version` and `--description` to name it). Confirm with the user first per the deploy rule below.
+- If you **just created** a version with `versions create` and the local files have **not changed since**, deploy that existing snapshot with `versori projects versions deploy --version-id <id> --environment <env>` instead of `projects deploy`. This avoids a duplicate version and is faster (no re-upload). Capture the `--version-id` from the `versions create` output (or `versori projects versions list`).
+- If the local files **have changed** since the version was created, create a fresh version (or use `projects deploy`) — never deploy a stale snapshot.
+
+After any deploy, diagnose and fix runtime errors from logs exactly as before (see the logs-diagnosis flow in `references/cli-usage.md`).
+
+**Always confirm before deploying** unless the user explicitly says "deploy", "ship it", or "go ahead". Creating a (non-live) version does not require this confirmation — but still tell the user you've checkpointed it.
+
 ## Project Selection
 
 Before writing any code or running CLI commands that require a project ID, determine the active project:
@@ -312,6 +347,24 @@ For unknown systems, research APIs and create a research document before generat
 - **Syntax / SDK errors**: Fix and explain changes made
 - **Connection / auth errors**: Inform the user to check credentials — do not modify code
 - **Do not regenerate unaffected files**
+
+## Logging & Issues (write code a human can debug from logs alone)
+
+Read `references/sdk-guide.md` (the **Logging** and **Creating Issues** sections) before writing observability code. The default bar is high: a human or agent should be able to diagnose a failure **from the logs alone, without asking the workflow to be re-run with extra logging added.** Build this in from the start — do not ship a workflow that logs only "failed" and then wait for a follow-up prompt to add detail.
+
+**Log semantically and richly around every external call — by default, not on request:**
+
+- Before each outbound call: log the method, the resolved path, and the request payload (full if small; a summarised shape — keys, counts, ids — if large).
+- After each call: log the response status and body (or a summary for large bodies).
+- On a caught error: log the proximate cause **and the specific input that triggered it** (the offending record/id), so the failure is reproducible from the log line.
+- Never log secrets (credentials, tokens, API keys, or bodies containing them). See the never-log-secrets rule in the SDK guide.
+
+**Escalate to a human with an issue when — and only when — a human can actually fix it.** `ctx.log.error` writes a log; it does not notify anyone. Call `ctx.createIssue({...})` (and wire up a notification channel) for failures that are **infrastructure/config problems on a static connection**, not data problems:
+
+- **Do raise an issue** (severity `high`) when a *crucial* endpoint on a **static** connection fails with a **non-user, non-data** error: expired/invalid credentials (401/403), endpoint not found / wrong base URL (404), server errors (5xx), or DNS/connection failures. These mean the integration itself is broken for everyone and a human must rotate a credential, fix config, or contact the vendor.
+- **Do not raise an issue** (just `log.error` / `.catch`) for data-level failures — validation errors, business-rule 4xx, malformed individual records — or for errors on **per-end-user (dynamic) connections**, where the end user supplied bad/expired credentials. Those are the data's or the user's problem, not an ops page, and high-volume ones would spam the channel.
+
+**Make sure issues actually reach someone.** An issue with no linked notification channel is silently dropped. When a project's workflows can raise issues, ensure an email **channel** exists and is **linked** to the environment — defaulting the recipient to the project creator's / current user's email (ask them for the address; service-key tokens carry no email). See the channel-setup CLI steps in `references/cli-usage.md` and `references/sdk-guide.md`.
 
 ## Research Phase
 
