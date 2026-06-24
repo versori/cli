@@ -629,11 +629,15 @@ production.env
 
 ## Deployment Safety
 
-**ALWAYS confirm before deploying** unless the user explicitly says "deploy", "ship it", or "go ahead".
+**Deploy when the user asks for it or implies it — and only then.** Saving a version (`versions create`) is a non-live checkpoint and never deploys on its own.
 
-Example confirmation: _"I've prepared the deployment command. Would you like me to deploy to production?"_
+- **Explicit** ("deploy", "ship it", "push to production", "release it", "go live", "go ahead") → deploy without asking.
+- **Implied** ("make it live", "get it running on the env", "I want to test it on staging", "publish the new webhook", "put it up so I can hit the URL") → treat as a deploy request.
+- **Ambiguous / implied-only** → confirm the target environment first.
 
-Consider using `--dry-run` first when intent is ambiguous.
+Example confirmation: _"I've prepared the deployment. Deploy version `0.2.0` to production?"_
+
+Consider using `--dry-run` first when intent is ambiguous. After deploying, tell the user which version is now live on which environment.
 
 ## The `.versori` File
 

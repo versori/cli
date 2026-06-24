@@ -256,6 +256,8 @@ A **version** is an immutable snapshot of the project's files. Deploying makes o
 - the user is about to deploy this same work now (the deploy creates the version — see below), or
 - the user has said they don't want a version / checkpoint.
 
+**Make every new version visible to the user.** After you create one, state clearly that you've saved a new checkpoint — include its **name** and **ID**, and say explicitly that it is **not yet live** (nothing has been deployed). The user should never have to guess whether a new version now exists. Example: _"Saved version `0.2.0` (`01KS…`) — this is a checkpoint only, not deployed. Say the word and I'll deploy it."_
+
 **Name versions with a consistent, ordered scheme — and always describe them for humans.** Before naming a new version, run `versori projects versions list` and look at what's already there:
 
 - **If the project already has a naming pattern, follow it and increment.** Match whatever the existing versions use — semver (`1.4.2`), a `v`-prefixed counter (`v7`), date-based (`2026-06-23`), etc. — and produce the next value in that sequence. Consistency within a project matters more than which scheme it is.
@@ -272,15 +274,19 @@ versori projects versions create \
   --description "New POST /orders webhook that upserts Shopify orders into Snowflake; adds retry on 5xx."
 ```
 
-**Don't create a redundant version when deploying right after.** `versori projects deploy` **always uploads the current files and creates a brand-new version**, then makes it live. So:
+**Deploy when the user asks for it or implies it — saving never deploys on its own.** Creating a version is a non-live checkpoint; making it live on an environment is a separate, deliberate step that you take only on the user's intent:
 
-- If you have **not** already created a version for this exact code, just run `versori projects deploy` (it creates the version for you — pass `--version` and `--description` to name it). Confirm with the user first per the deploy rule below.
+- **Explicit** — "deploy", "ship it", "push to production", "release it", "go live", "go ahead". Just deploy.
+- **Implied** — "make it live", "get it running on the env", "I want to test it on staging/production", "publish the new webhook", "can you put this up so I can hit the URL". Treat these as deploy requests.
+- **Ambiguous or implied-only** — confirm the target environment before deploying (e.g. _"Deploy `0.2.0` to `production`?"_). When the intent is explicit, deploy without asking.
+
+When you do deploy, don't create a redundant version. `versori projects deploy` **always uploads the current files and creates a brand-new version**, then makes it live. So:
+
+- If you have **not** already created a version for this exact code, run `versori projects deploy` (it creates the version for you — pass `--version` and `--description` to name it per the scheme above).
 - If you **just created** a version with `versions create` and the local files have **not changed since**, deploy that existing snapshot with `versori projects versions deploy --version-id <id> --environment <env>` instead of `projects deploy`. This avoids a duplicate version and is faster (no re-upload). Capture the `--version-id` from the `versions create` output (or `versori projects versions list`).
 - If the local files **have changed** since the version was created, create a fresh version (or use `projects deploy`) — never deploy a stale snapshot.
 
-After any deploy, diagnose and fix runtime errors from logs exactly as before (see the logs-diagnosis flow in `references/cli-usage.md`).
-
-**Always confirm before deploying** unless the user explicitly says "deploy", "ship it", or "go ahead". Creating a (non-live) version does not require this confirmation — but still tell the user you've checkpointed it.
+After any deploy, tell the user which version is now live on which environment, then diagnose and fix runtime errors from logs exactly as before (see the logs-diagnosis flow in `references/cli-usage.md`).
 
 ## Project Selection
 
