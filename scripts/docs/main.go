@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -25,6 +26,48 @@ import (
 	"github.com/versori/cli/pkg/cmd"
 	"gopkg.in/yaml.v3"
 )
+
+// Patterns that Mintlify's MDX parser would otherwise mis-read as JSX and refuse
+// to render — or that render correctly in MDX but get stripped by the browser
+// because Mintlify emits raw `<` / `>` inside <code> tags instead of HTML-
+// encoding them.
+//
+//   - mdxPlaceholderRe: bare <placeholder> tokens (e.g. <key>, <project-id>).
+//     The tight character class keeps real autolinks (<https://example.com>)
+//     and shell redirection snippets (`echo <file`) untouched. Backslash-
+//     escape both ends so MDX renders them as literal `<placeholder>` text;
+//     wrapping in backticks looks nicer but the browser then treats <id> as
+//     an unknown HTML tag and strips it.
+//   - { and }: MDX treats braces in prose as JS expressions. Backslash-escape
+//     every occurrence so they render as literal punctuation. Handles nested
+//     JSON examples (e.g. '{"a": {"b": 1}}') that a paired-brace regex can't.
+var (
+	mdxPlaceholderRe = regexp.MustCompile(`<([A-Za-z][A-Za-z0-9._-]*)>`)
+	mdxFenceLineRe   = regexp.MustCompile("^\\s*```")
+)
+
+// mdxSafe neutralises markdown content that would otherwise trip Mintlify's MDX
+// (acorn) parser or get mangled by browser HTML parsing. Applied to free-form
+// prose fields (Description, flag Usage) before they hit the template. Content
+// inside ``` fences is left untouched because MDX treats fenced code as literal.
+func mdxSafe(s string) string {
+	lines := strings.Split(s, "\n")
+	inFence := false
+	for i, line := range lines {
+		if mdxFenceLineRe.MatchString(line) {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		line = mdxPlaceholderRe.ReplaceAllString(line, `\<$1\>`)
+		line = strings.ReplaceAll(line, "{", `\{`)
+		line = strings.ReplaceAll(line, "}", `\}`)
+		lines[i] = line
+	}
+	return strings.Join(lines, "\n")
+}
 
 // YamlDocOption represents a single CLI flag or option entry.
 type YamlDocOption struct {
@@ -64,17 +107,17 @@ type YamlDoc struct {
 
 const markdownTemplate = `---
 title: "{{ .Name | trimPrefix }}"
-description: "{{ .Synopsis | singleLine }}"
+description: "{{ .Synopsis | singleLine | mdxSafe }}"
 ---
 
-{{ .Description }}
+{{ .Description | mdxSafe }}
 
 ## Subcommands
 
 | Subcommand | Description |
 |---|---|
 {{- range .SubCommands }}
-| ` + "`{{ .Command }}`" + ` | {{ .Synopsis | singleLine }} |
+| ` + "`{{ .Command }}`" + ` | {{ .Synopsis | singleLine | mdxSafe }} |
 {{- end }}
 
 ---
@@ -85,9 +128,9 @@ description: "{{ .Synopsis | singleLine }}"
 
 {{ if hasSubCommands . }}
 
-See the [{{ .Command }} reference]({{ prefix }}{{ relPath $ . }}{{ refExt }}) for detailed subcommands to {{ .Synopsis | lower }}.
+See the [{{ .Command }} reference]({{ prefix }}{{ relPath $ . }}{{ refExt }}) for detailed subcommands to {{ .Synopsis | lower | mdxSafe }}.
 {{ else }}
-{{ .Description }}
+{{ .Description | mdxSafe }}
 
 ` + "```sh" + `
 {{ .Usage }}
@@ -96,7 +139,7 @@ See the [{{ .Command }} reference]({{ prefix }}{{ relPath $ . }}{{ refExt }}) fo
 {{ if .Options }}
 **Flags:**
 {{- range .Options }}
-* {{ if .Shorthand }}` + "`{{ formatFlag .Shorthand }}`" + `, {{ end }}` + "`{{ formatFlagLong .Name }}`" + `: {{ .Usage }}
+* {{ if .Shorthand }}` + "`{{ formatFlag .Shorthand }}`" + `, {{ end }}` + "`{{ formatFlagLong .Name }}`" + `: {{ .Usage | mdxSafe }}
 {{- end }}
 {{ end }}
 {{ end }}
@@ -176,6 +219,7 @@ func init() {
 			s = strings.ReplaceAll(s, "\r", "")
 			return strings.TrimSpace(s)
 		},
+		"mdxSafe": mdxSafe,
 	}).Parse(markdownTemplate)
 	if err != nil {
 		panic(err)

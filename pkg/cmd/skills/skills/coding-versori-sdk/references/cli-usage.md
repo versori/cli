@@ -2,7 +2,7 @@
 
 ## Index
 
-- **Project lifecycle**: `projects list/create/details`, `project sync/deploy`, `projects versions list`
+- **Project lifecycle**: `projects list/create/details`, `project sync/deploy`, `projects versions list/create/deploy`
 - **Systems & auth**: `systems create`, `systems add-auth-scheme`, `projects systems bootstrap/list/add/update-connection-template/list-connections/connect/delete-connection-template`
 - **Connections**: `connections create/list`
 - **End-users & activations**: `users create/list`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
@@ -386,9 +386,37 @@ Replace the entire `DynamicVariablesSchema` (PUT). Anything not in the new schem
 
 ### `versori projects versions list --project <id>`
 
-List the most recent deployed versions of a project.
+List the most recent versions of a project (newest first), with each version's ID, name, description, and state.
 
-Run this before deploying to see what versions already exist so you can pick the next version number. Version numbers are plain integers (e.g. `1`, `2`, `3`).
+Run this to see what versions already exist and to copy a version's **ID** (a ULID) when you want to deploy an existing snapshot with `versori projects versions deploy --version-id <id>`. Versions are identified by a human-readable **name** (whatever was passed to `--name`, or a UTC timestamp when `deploy` auto-generated it), not by a sequential integer.
+
+### `versori projects versions create [--project <id>] [--directory <dir>] [--name <name>] [--description <text>] [--dry-run]`
+
+Create a new immutable **version** (a snapshot of the project files) **without deploying it**. This is the cheap checkpoint to run whenever a feature or unit of work is complete — it uploads the current files and records a version, but makes nothing live. Alias: `push`.
+
+- `--directory` / `-d` — files to snapshot (default `.`).
+- `--name` / `-n` — version name. Use a consistent, ordered scheme: first run `versori projects versions list` and **match the existing pattern** (semver `1.4.2`, a `v`-counter `v7`, date-based, etc.), incrementing to the next value. If there's no established pattern, **use semver starting at `0.0.1`** — bump patch (`0.0.x`) for small fixes, minor (`0.x.0`) for new features, major (`x.0.0`) for breaking changes. If omitted, the CLI opens an editor to prompt for it.
+- `--description` — a concise summary of what changed; include it for any non-trivial change so the version list reads like a changelog. If omitted, the CLI opens an editor to prompt for it (description may be left blank).
+- `--dry-run` — print the files that would be uploaded without creating the version.
+- `--project` defaults from `.versori`; when there is no `.versori`, the CLI shows an interactive project picker.
+
+The command prints the created version's `ID`, `Name`, `Description`, and `State`. **Capture the `ID`** — it's the input to `versions deploy`.
+
+```bash
+versori projects versions create \
+  --name "0.2.0" \
+  --description "New POST /orders webhook; upserts Shopify orders into Snowflake; retries on 5xx."
+```
+
+### `versori projects versions deploy --project <id> --version-id <id> --environment <env>`
+
+Deploy an **existing** version to an environment **without creating a new one**. Use this to make a snapshot created by `versions create` live. The flag is `--version-id` (a ULID from `versions create` output or `versions list`), not `--version`. Both `--version-id` and `--environment` are required.
+
+```bash
+versori projects versions deploy --version-id 01KVSY5... --environment production
+```
+
+**Use this to avoid redundant versions.** `versori projects deploy` always uploads files and creates a *new* version each time. If you have just created a version with `versions create` and the local files have not changed since, deploy that exact version with `versions deploy` — it's faster (no re-upload) and doesn't duplicate the version. If the files changed after the version was created, do not deploy the stale snapshot: create a fresh version (or use `projects deploy`).
 
 ### `versori projects assets list --project <id>`
 
@@ -406,11 +434,13 @@ Download an asset by name. The `--asset` flag is required. `--directory` default
 
 Deploy a project and upload the project asset files as well.
 
+**This always creates a new version, then deploys it.** Every `deploy` invocation uploads the current files and records a fresh version (named from `--version`, or a UTC timestamp if omitted). So deploying twice in a row produces two versions. If you've *just* created a version with `versori projects versions create` and haven't changed the files since, deploy that existing snapshot with `versori projects versions deploy --version-id <id> --environment <env>` instead — it avoids the duplicate version and skips the re-upload. See the `versions create` / `versions deploy` entries above.
+
 **Defaults:**
 
 - Directory: `.`
 - Environment: `production` (or `VERSORI_DEFAULT_ENVIRONMENT`)
-- Version: Can be left empty and the CLI will generate a name based on the current timestamp.
+- Version: Can be left empty and the CLI will generate a name based on the current timestamp. Prefer passing an explicit `--version` (and `--description`) that follows the project's existing naming scheme — match the pattern from `versori projects versions list`, or use semver (`0.0.1`, bumping patch/minor/major by change size) if there's none — so the version list stays readable and ordered.
 
 Add `--dry-run` to show what would happen without executing.
 
@@ -426,8 +456,20 @@ Fetch workflow execution logs for one project + environment. Output is **always 
 
 - `--project <id>` — defaults from `.versori` when inside a synced project directory.
 - `--since <duration>` — Go duration window from now (default `24h`). Examples: `30s`, `15m`, `2h30m`.
-- `--limit <n>` — cap on returned entries (default `0` = no cap).
+- `--limit <n>` — page size (max entries to return). Must be **1–1000**. `0` (the default) omits the page-size parameter entirely, so the server applies its own default page. **Do not pass a value above 1000.**
 - `--search <query>` — server-side filter; useful for narrowing to one execution by ID, a task name, or an error substring.
+
+**`--limit` must be between 1 and 1000 — values above 1000 are rejected, not silently capped.** Passing `--limit 1001` (or `5000`) fails the whole call with:
+
+```
+Message:
+  failed to retrieve logs
+Reason:
+  API Message: invalid page size
+  API Details: Page size must be between 1 and 1000
+```
+
+`--limit 0` (the default) is safe — it just omits the page-size param and lets the server return its default page. A single request therefore returns **at most 1000 entries**, and the CLI does **not** auto-paginate, so one call shows at most one page. Don't assume you've seen the full history of a busy environment from one call. When a window is likely to exceed 1000 entries, narrow it: shrink `--since`, add a `--search` filter (e.g. an `executionId`, task name, or error substring), or filter to `severity == "error"`/`"warn"` with `jq`. Treat "exactly 1000 lines returned" as a signal that you're probably truncated and should narrow further.
 
 **There is no `--follow` / `-f` flag.** Logs are pulled once per invocation. To tail while a workflow runs, poll in a loop:
 
@@ -587,11 +629,15 @@ production.env
 
 ## Deployment Safety
 
-**ALWAYS confirm before deploying** unless the user explicitly says "deploy", "ship it", or "go ahead".
+**Deploy when the user asks for it or implies it — and only then.** Saving a version (`versions create`) is a non-live checkpoint and never deploys on its own.
 
-Example confirmation: _"I've prepared the deployment command. Would you like me to deploy to production?"_
+- **Explicit** ("deploy", "ship it", "push to production", "release it", "go live", "go ahead") → deploy without asking.
+- **Implied** ("make it live", "get it running on the env", "I want to test it on staging", "publish the new webhook", "put it up so I can hit the URL") → treat as a deploy request.
+- **Ambiguous / implied-only** → confirm the target environment first.
 
-Consider using `--dry-run` first when intent is ambiguous.
+Example confirmation: _"I've prepared the deployment. Deploy version `0.2.0` to production?"_
+
+Consider using `--dry-run` first when intent is ambiguous. After deploying, tell the user which version is now live on which environment.
 
 ## The `.versori` File
 

@@ -49,13 +49,15 @@ schema from a file in CI.
 
 Example schema declaring two string variables:
 
-  {
-    "type": "object",
-    "properties": {
-      "tenant_org_id": { "type": "string" },
-      "channel_id":    { "type": "string" }
-    }
+` + "```json" + `
+{
+  "type": "object",
+  "properties": {
+    "tenant_org_id": { "type": "string" },
+    "channel_id":    { "type": "string" }
   }
+}
+` + "```" + `
 
 After updating the schema, end-user activations can set those keys via 'versori projects users
 activate --variable key=value' or 'versori projects users set-variable[s]'.`,

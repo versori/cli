@@ -58,7 +58,7 @@ versori projects systems bootstrap --file <path> [flags]
 * `-h`, `--help`: help for bootstrap
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
-* `--system-overrides`: JSON object of per-system overrides (e.g. '{"Stripe": {"base_url": "..."}}')
+* `--system-overrides`: JSON object of per-system overrides (e.g. '\{"Stripe": \{"base_url": "..."\}\}')
 
 
 

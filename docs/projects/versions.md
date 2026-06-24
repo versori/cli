@@ -10,7 +10,7 @@ description: "Manage versions within a project."
 | Subcommand | Description |
 |---|---|
 | `create` | Creates a new version for a project with the files from --directory |
-| `deploy` | Creates a new version for a project with the files from --directory |
+| `deploy` | Deploy an existing project version to an environment (without creating a new version) |
 | `list` | Lists most recent versions |
 | `pull` | Pull files from a version into the target directory |
 
@@ -45,7 +45,7 @@ versori projects versions create [--project <project-id>] [--directory <source_d
 
 
 ```sh
-versori projects versions deploy --project <project-id> --version <version-id> --environment <environment-name> [flags]
+versori projects versions deploy --project <project-id> --version-id <version-id> --environment <environment-name> [flags]
 ```
 
 

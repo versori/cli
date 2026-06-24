@@ -278,14 +278,23 @@ Do not log raw credentials, access tokens, refresh tokens, API keys, or full req
 
 #### Where and when to log
 
-- **Around external calls.** Log immediately before and after every call to a third-party endpoint. Include the request payload (if not too large) and the response — status code plus body, or a summarised shape if the body is huge. This is the single highest-value place to log; most integration issues surface here.
+**Target: a failure should be diagnosable from the logs alone.** Write logs so that a human (or another agent) reading them after the fact can tell *which task failed, on what input, and what the upstream said* — without needing to re-run the workflow with extra logging bolted on. Build this richness in from the start; do not ship a workflow that logs only "failed" and rely on a follow-up prompt to add the detail.
+
+- **Around external calls.** Log immediately before and after **every** call to a third-party endpoint, by default. Before: the method, resolved path, and request payload (full if small; a summarised shape — keys, counts, ids — if large). After: the response status code plus body (or a summary for a huge body). This is the single highest-value place to log; most integration issues surface here.
 - **Retries.** Log a `warn` on each retry with the attempt number and the reason. Log an `error` (or escalate via an issue) when retries are exhausted.
 - **State transitions.** Log when KV cursors advance, batches complete, or the workflow moves between phases.
-- **Caught errors.** Log inside any `try/catch` or `.catch()` block with the error message and the inputs that caused it. Do not swallow errors silently.
+- **Caught errors.** Log inside any `try/catch` or `.catch()` block with the error message **and the specific input that caused it** (the offending record or id, plus the upstream status/body when the failure was an HTTP call), so the failure is reproducible from the single log line. Do not swallow errors silently.
 
 #### Escalating to a human
 
 `ctx.log.error(...)` writes to logs — it does **not** notify anyone. When a human needs to be alerted (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and can trigger email alerts via a configured **notification channel**.
+
+**Escalate only failures a human can actually act on — distinguish infrastructure from data.** The line to draw:
+
+- **Raise an issue** (severity `high`) when a *crucial* endpoint on a **static** connection fails with a **non-user, non-data** error — expired/invalid credentials (401/403), endpoint not found / wrong base URL (404), server errors (5xx), or DNS/connection failures. These mean the integration is broken for everyone until an operator rotates a credential, fixes config, or contacts the vendor. This is exactly what a person needs to be paged about.
+- **Do not raise an issue** (just `log.error` / let `.catch` run) for **data-level** failures — schema/validation errors, business-rule 4xx, a single malformed record — or for failures on **per-end-user (dynamic) connections**, where the end user supplied bad or expired credentials. Those are the data's or the user's problem, not an ops page, and high-volume ones would flood the channel. Surface them in logs (and, for dynamic connections, through whatever end-user-facing re-auth flow the product has) instead.
+
+**An issue with no linked channel is silently dropped**, so when workflows can raise issues, make sure a channel exists and is linked (next). Default the recipient to the **project creator's / current user's email** — ask the user for the address, since service-key tokens carry no email claim.
 
 **Setting up email alerts (CLI, end-to-end):**
 
@@ -322,6 +331,8 @@ See [Creating Issues](#creating-issues) for the full `ctx.createIssue()` API.
 Issues are notifications surfaced in the Versori platform. They can trigger email alerts and are available for inspection in the UI.
 
 Issues are created **automatically** when a `.catch()` block executes. You can also create them **manually** with `ctx.createIssue()` from any task.
+
+**When to create one:** reserve issues for failures a human can act on — infrastructure/config errors on a *static* connection (expired credentials, 404 endpoint, 5xx, DNS). Do **not** raise issues for data-validation errors or for per-end-user (dynamic) connection failures. See [Escalating to a human](#escalating-to-a-human) for the full rule, and ensure a notification channel is linked or the issue is dropped silently.
 
 **Important:** When deduplication is disabled, never create issues inside a loop — each issue can trigger multiple emails.
 
