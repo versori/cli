@@ -225,6 +225,60 @@ Rules:
       `versori projects users set-variable --name <key> --value <value>` on an
       existing activation.
 
+## Key-Value store access (`versori kv`)
+
+The `versori kv` commands inspect and manage a project's KV store from the CLI.
+KV holds **live workflow state** — cursors, dedupe keys, batch progress — so the
+group is split into a read tier and a mutation tier, and you must treat them very
+differently.
+
+**Read tier — safe to run for diagnosis (use freely):**
+
+- `versori kv stores list` — list the org's KV stores.
+- `versori kv list` — enumerate entries under a prefix (capped page; use
+  `-o json` / `-o yaml` for full nested values). Supports server-side
+  `--created-after` / `--created-before` / `--metadata key=value` filters.
+  KV "search" is prefix descent plus these filters — there is no value or
+  key-substring search (pipe `-o json` to `jq` for that). **Pagination is
+  cursor-based, ordered newest-first by internal ID (not by key):** to page,
+  pass the previous response's opaque `nextCursor` to `--after` (never a key —
+  a key triggers a misleading 500). An **empty `nextCursor` means end-of-results**,
+  not a hidden page — cross-check totals with `kv count`, don't invent key-based
+  paging.
+- `versori kv count` — total entries matching a prefix. Use this to answer "how
+  many items?" — `list` only returns a capped page, so a full count needs
+  `count`. The count API is prefix-only (no created/metadata filter).
+- `versori kv get` — fetch one entry by key.
+
+**Mutation tier — NEVER run unless the user explicitly asks for that specific
+change:**
+
+- `versori kv set` — write a value at a key.
+- `versori kv delete` — remove a single key.
+- `versori kv wipe` — cascade-delete every entry under a prefix (bulk; the most
+  destructive).
+
+Rules for the mutation tier:
+
+1. **Explicit request only.** Do not `set` / `delete` / `wipe` as a side-effect of
+   debugging, to "fix up" or "clean" state, or because it seems helpful. Only when
+   the user names the mutation.
+2. **Never guess the target.** Confirm the store/scope and key/prefix before any
+   mutation. `wipe` refuses an empty prefix and only proceeds with `--confirm`
+   (without it, it prints a dry-run count).
+3. **Non-interactive safety.** `set` / `delete` require `--yes` in non-TTY shells;
+   the CLI refuses otherwise.
+4. **Value encoding matches the SDK.** `kv set` JSON-encodes values the same way
+   `ctx.openKv().set()` does, and the read commands unwrap that encoding by default
+   (`--raw-values` shows the literal stored bytes). So a value written with
+   `kv set` is readable by workflow code and vice-versa.
+
+Addressing: every kv command targets a store either by raw ID (`--store <id>` plus
+`--prefix` / `--key`) or by friendly scope (`--scope
+organization|workspace|project|user|execution` with `--project` / `--environment` /
+`--external-id` / etc.), which derives the store + key prefix the same way the
+runtime SDK does. See `references/cli-usage.md` for full flags.
+
 ## CLI Commands
 
 Use the `versori` CLI for any operation that touches the Versori platform: listing / creating / syncing / starring projects, switching contexts, bootstrapping systems, creating or listing connections, uploading or listing project assets, deploying, **viewing or tailing workflow logs**, **diagnosing failed executions**, managing notification channels and their project links, managing activations, end-users, or project / activation variables, and listing or saving project files.
@@ -251,26 +305,18 @@ Use the `versori` CLI for any operation that touches the Versori platform: listi
 
 A **version** is an immutable snapshot of the project's files. Deploying makes one version live on an environment. Read `references/cli-usage.md` (the `versions create` / `versions deploy` / `deploy` entries) for full flags before running any of these.
 
-**Save a version whenever a feature or self-contained unit of work is complete.** After you finish a feature, a meaningful refactor, or a working increment — and have validated it locally (`deno check` / `deno test`) — default to creating a version with `versori projects versions create`. This is a cheap, non-deploying checkpoint (it uploads files and records a snapshot; it does **not** make anything live). Do it proactively without waiting to be asked. The only times you skip it:
+**Save a version automatically whenever a significant feature or self-contained unit of work is complete.** After you finish a big feature, a meaningful refactor, or a working increment — and have validated it locally (`deno check` / `deno test`) — default to creating a version with `versori projects versions create`. This is a cheap, non-deploying checkpoint (it uploads files and records a snapshot; it does **not** make anything live). Do it proactively without waiting to be asked. The only times you skip it:
 
 - the user is about to deploy this same work now (the deploy creates the version — see below), or
 - the user has said they don't want a version / checkpoint.
 
-**Make every new version visible to the user.** After you create one, state clearly that you've saved a new checkpoint — include its **name** and **ID**, and say explicitly that it is **not yet live** (nothing has been deployed). The user should never have to guess whether a new version now exists. Example: _"Saved version `0.2.0` (`01KS…`) — this is a checkpoint only, not deployed. Say the word and I'll deploy it."_
+**Make every new version visible to the user.** After you create one, state clearly that you've saved a new checkpoint — include its **name** and **ID**, and say explicitly that it is **not yet live** (nothing has been deployed). The user should never have to guess whether a new version now exists. Example: _"Saved a new version (`<name>`, `01KS…`) — this is a checkpoint only, not deployed. Say the word and I'll deploy it."_
 
-**Name versions with a consistent, ordered scheme — and always describe them for humans.** Before naming a new version, run `versori projects versions list` and look at what's already there:
-
-- **If the project already has a naming pattern, follow it and increment.** Match whatever the existing versions use — semver (`1.4.2`), a `v`-prefixed counter (`v7`), date-based (`2026-06-23`), etc. — and produce the next value in that sequence. Consistency within a project matters more than which scheme it is.
-- **If there's no established pattern (or it's the first version), use semver starting at `0.0.1`** and bump the digit that matches the size of the change:
-  - **patch** (`0.0.1` → `0.0.2`) — small fixes, tweaks, or internal refactors with no behaviour change.
-  - **minor** (`0.0.2` → `0.1.0`) — new backward-compatible features (e.g. a new webhook or task).
-  - **major** (`0.1.0` → `1.0.0`) — breaking changes or a significant rewrite.
-
-Always put a concise summary of what changed in `--description` whenever the change is non-trivial, so the version list reads like a changelog:
+**Always pass `--name` and `--description`.** Both are required in practice — if either is omitted the CLI drops into an interactive editor, which hangs a non-interactive agent. Put a concise summary of *what changed* in `--description` so the version list reads like a changelog. Pick any sensible short `--name`; don't over-think it (no required naming scheme):
 
 ```bash
 versori projects versions create \
-  --name "0.2.0" \
+  --name "<short-name>" \
   --description "New POST /orders webhook that upserts Shopify orders into Snowflake; adds retry on 5xx."
 ```
 
@@ -278,11 +324,11 @@ versori projects versions create \
 
 - **Explicit** — "deploy", "ship it", "push to production", "release it", "go live", "go ahead". Just deploy.
 - **Implied** — "make it live", "get it running on the env", "I want to test it on staging/production", "publish the new webhook", "can you put this up so I can hit the URL". Treat these as deploy requests.
-- **Ambiguous or implied-only** — confirm the target environment before deploying (e.g. _"Deploy `0.2.0` to `production`?"_). When the intent is explicit, deploy without asking.
+- **Ambiguous or implied-only** — confirm the target environment before deploying (e.g. _"Deploy the latest version to `production`?"_). When the intent is explicit, deploy without asking.
 
 When you do deploy, don't create a redundant version. `versori projects deploy` **always uploads the current files and creates a brand-new version**, then makes it live. So:
 
-- If you have **not** already created a version for this exact code, run `versori projects deploy` (it creates the version for you — pass `--version` and `--description` to name it per the scheme above).
+- If you have **not** already created a version for this exact code, run `versori projects deploy` (it creates the version for you — pass `--version` and a `--description` of what changed).
 - If you **just created** a version with `versions create` and the local files have **not changed since**, deploy that existing snapshot with `versori projects versions deploy --version-id <id> --environment <env>` instead of `projects deploy`. This avoids a duplicate version and is faster (no re-upload). Capture the `--version-id` from the `versions create` output (or `versori projects versions list`).
 - If the local files **have changed** since the version was created, create a fresh version (or use `projects deploy`) — never deploy a stale snapshot.
 

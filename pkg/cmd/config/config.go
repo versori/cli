@@ -378,6 +378,24 @@ func (c *ConfigFactory) Print(resource any) {
 	utils.Print(resource, c.outputFormat)
 }
 
+// OutputFormat returns the resolved output format (yaml, json, or table). Commands that need to
+// render different representations per format (e.g. a compact table vs. real nested JSON values)
+// can branch on this instead of always routing through Print.
+func (c *ConfigFactory) OutputFormat() string {
+	return c.outputFormat
+}
+
+// OrganisationID returns the organisation ID for the active context, loading the context first if
+// it hasn't been resolved yet. Callers that resolve a project ID first (which may switch the
+// context to the .versori-pinned one) should do so before reading this.
+func (c *ConfigFactory) OrganisationID() string {
+	if c.Context == nil {
+		c.loadContext()
+	}
+
+	return c.Context.OrganisationId
+}
+
 func readOrCreateConfig(configPath string) (*Config, error) {
 	config := Config{
 		Contexts: make(map[string]Context),

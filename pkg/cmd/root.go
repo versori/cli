@@ -79,5 +79,9 @@ func GetRootCommand() *cobra.Command {
 	skillsCommand := newSkillsCommand(configFactory)
 	rootCmd.AddCommand(skillsCommand)
 
+	// kv command
+	kvCommand := newKvCommand(configFactory)
+	rootCmd.AddCommand(kvCommand)
+
 	return rootCmd
 }
