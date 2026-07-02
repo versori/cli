@@ -9,6 +9,7 @@
 - **Dynamic-variable schema**: `projects variables list/add/update/remove/get/set`
 - **Assets**: `projects assets list/upload/download`
 - **Observability & alerts**: `projects logs`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
+- **KV store**: `kv stores list`, `kv list/count/get` (read), `kv set/delete/wipe` (mutation)
 - **Reference material**: `.gitignore`, environment variables, deployment safety, the `.versori` file, workflow recipes, example interactions
 
 ## CLI Commands
@@ -395,8 +396,8 @@ Run this to see what versions already exist and to copy a version's **ID** (a UL
 Create a new immutable **version** (a snapshot of the project files) **without deploying it**. This is the cheap checkpoint to run whenever a feature or unit of work is complete — it uploads the current files and records a version, but makes nothing live. Alias: `push`.
 
 - `--directory` / `-d` — files to snapshot (default `.`).
-- `--name` / `-n` — version name. Use a consistent, ordered scheme: first run `versori projects versions list` and **match the existing pattern** (semver `1.4.2`, a `v`-counter `v7`, date-based, etc.), incrementing to the next value. If there's no established pattern, **use semver starting at `0.0.1`** — bump patch (`0.0.x`) for small fixes, minor (`0.x.0`) for new features, major (`x.0.0`) for breaking changes. If omitted, the CLI opens an editor to prompt for it.
-- `--description` — a concise summary of what changed; include it for any non-trivial change so the version list reads like a changelog. If omitted, the CLI opens an editor to prompt for it (description may be left blank).
+- `--name` / `-n` — version name. Pick any sensible short name; there's no required naming scheme. **Always pass it** — if omitted the CLI opens an interactive editor, which hangs a non-interactive agent.
+- `--description` — a concise summary of what changed, so the version list reads like a changelog. **Always pass it** — if omitted the CLI opens an interactive editor (which hangs a non-interactive agent).
 - `--dry-run` — print the files that would be uploaded without creating the version.
 - `--project` defaults from `.versori`; when there is no `.versori`, the CLI shows an interactive project picker.
 
@@ -404,7 +405,7 @@ The command prints the created version's `ID`, `Name`, `Description`, and `State
 
 ```bash
 versori projects versions create \
-  --name "0.2.0" \
+  --name "<short-name>" \
   --description "New POST /orders webhook; upserts Shopify orders into Snowflake; retries on 5xx."
 ```
 
@@ -440,7 +441,7 @@ Deploy a project and upload the project asset files as well.
 
 - Directory: `.`
 - Environment: `production` (or `VERSORI_DEFAULT_ENVIRONMENT`)
-- Version: Can be left empty and the CLI will generate a name based on the current timestamp. Prefer passing an explicit `--version` (and `--description`) that follows the project's existing naming scheme — match the pattern from `versori projects versions list`, or use semver (`0.0.1`, bumping patch/minor/major by change size) if there's none — so the version list stays readable and ordered.
+- Version: Can be left empty and the CLI will generate a name based on the current timestamp. Prefer passing an explicit `--version` (any sensible short name; no required scheme) and a `--description` of what changed, so the version list reads like a changelog.
 
 Add `--dry-run` to show what would happen without executing.
 
@@ -534,6 +535,70 @@ The pattern is _find the error → pull the full execution trace → walk it top
    Only after that diagnosis, propose a code change.
 
 If logs are empty for the window, the workflow has not been triggered yet — confirm with the user that the source event has actually fired before assuming a runtime issue. If logs show only `info` lines and no error, the failure may be platform-side (deploy mis-configured, connection invalid, dynamic-variable missing) rather than in workflow code.
+
+## KV store
+
+The `versori kv` command group inspects and manages a project's KV store. **Read commands (`stores list`, `list`, `count`, `get`) are safe to run for diagnosis. Mutation commands (`set`, `delete`, `wipe`) change live workflow state (cursors, dedupe keys, batch progress) and must only be run when the user explicitly asks for that specific change** — never as a debugging side-effect or proactive cleanup.
+
+Every command targets a store in one of two ways:
+
+- **Raw**: `--store <id>` plus `--prefix <segment>` (repeatable) and/or `--key <a/b/c>`. Values map straight onto the KV HTTP API; keys are shown in full.
+- **Friendly**: `--scope <organization|workspace|project|user|execution>` plus the identifiers that scope needs (`--project`, `--environment`, `--external-id`, `--execution-id`, `--activation-id`). The CLI derives the store name and key prefix exactly the way the runtime SDK does, and strips the scope prefix from displayed keys (pass `--full-keys` to keep it). Extra `--prefix` segments narrow within the scope.
+
+`--store` and `--scope` are mutually exclusive. Friendly `--project` defaults from `.versori` like other project commands. Scope prefixes follow the SDK: `organization` → `[org]`, `workspace` → `[org, project, env]`, `project` → `[org, project, env(, activationId)]`, `user` → `[org, project, env, sha256(externalId)]`, `execution` → `[org, project, env, executionId(, activationId)]`.
+
+**Value encoding.** Workflow code writes KV values via the SDK, which JSON-encodes them (so stored values are JSON strings). `kv set` uses the same encoding, and the read commands unwrap one level by default so values render as structures rather than escaped strings. Pass `--raw-values` to `list` / `get` to see exactly what is stored.
+
+### `versori kv stores list`
+
+List the KV stores in the current organisation (read-only). Stores are created lazily by the runtime on first write and named `ORG_<org>`, `PROJECT_<project>`, or `EXECUTION_<project>`. Output columns: `Name / ID`. A missing store usually means the workflow hasn't written to that scope yet.
+
+### `versori kv list (--store <id> | --scope <scope> ...) [--prefix <segment>]...`
+
+List entries under a prefix (read-only). Optional flags: `--limit <1-100>` (`0` lets the server default apply), `--reverse`, `--after` / `--before`, `--raw-values`. Server-side filters beyond the prefix: `--created-after` / `--created-before` (RFC3339 like `2026-06-01T00:00:00Z`, or just `YYYY-MM-DD`) and `--metadata key=value` (repeatable; each value is parsed as JSON when valid, else treated as a string). For full nested values use `-o json` or `-o yaml`; the table view truncates the value column.
+
+**Pagination is cursor-based.** Entries are ordered newest-first by the entry's internal ID (a ULID), **not** by key. To get the next page, pass the previous response's **opaque `nextCursor` verbatim** to `--after` (in table mode the CLI also prints this as an `--after "<cursor>"` hint on stderr). `--after`/`--before` take **opaque cursors, never keys** — passing a key produces a server-side error (currently surfaced as a misleading "Something went wrong with a downstream service" 500). An **empty `nextCursor` is authoritative: there are no more entries** — it does not mean a page is hidden, so do not switch to key-based paging. For an authoritative total under a prefix, use `kv count`. Each entry also carries `createdAt` (`.data[].createdAt` in `-o json`), so time-windowing via `--created-before <oldest createdAt>` is a valid fallback but unnecessary once you page with the cursor.
+
+```bash
+# correct loop: follow nextCursor until it's empty
+next=$(versori kv list --scope project --environment production --activation-id "$AID" \
+  --prefix write-batch-pending --limit 100 -o json | jq -r '.pagination.nextCursor // empty')
+[ -n "$next" ] && versori kv list --scope project --environment production --activation-id "$AID" \
+  --prefix write-batch-pending --limit 100 --after "$next" -o json
+```
+
+KV is an ordered key-value store: "search" is prefix-based descent of the key hierarchy (each `--prefix` segment is appended after the resolved scope prefix), optionally narrowed by the creation-time / metadata filters above. There is no value or key-substring search; for that, `kv list -o json | jq`.
+
+### `versori kv count (--store <id> | --scope <scope> ...) [--prefix <segment>]...`
+
+Count entries matching a prefix (read-only). Unlike `list`, this returns a total rather than a capped page — the right way to answer "how many items are under this prefix?". The count API matches on prefix only: it has no `--created-after` / `--created-before` / `--metadata` filter. To count a filtered subset, use `kv list` with those filters (server-side) or `kv list -o json | jq` and count locally.
+
+### `versori kv get (--store <id> | --scope <scope> ...) --key <a/b/c>`
+
+Fetch a single entry by key (read-only). In raw mode `--key` is the literal full key; in friendly mode it is relative to the scope (the CLI prepends the scope prefix). `--raw-values` shows the stored value verbatim.
+
+### `versori kv set (--store <id> | --scope <scope> ...) --key <a/b/c> (--value <json> | --value-file <path>)`
+
+**Mutation.** Write a value at a key. The value is JSON-encoded to match the SDK so workflow reads round-trip; a `--value` that parses as JSON keeps its type (object/array/number/bool), otherwise it is stored as a string. Read the value from a file with `--value-file`. Optional `--expire-in <ms>` (TTL) and `--if-not-exists`. Confirms before writing unless `--yes` is passed; `--yes` is required in non-interactive shells. **Agent: only run when explicitly asked to set a specific key.**
+
+### `versori kv delete (--store <id> | --scope <scope> ...) --key <a/b/c>`
+
+**Mutation.** Delete a single key (alias: `rm`). Confirms unless `--yes`; `--yes` required in non-TTY shells. Removes one key only — use `kv wipe` to delete a whole subtree. **Agent: only run when explicitly asked to delete a specific key.**
+
+### `versori kv wipe (--store <id> --prefix <segment>... | --scope <scope> ...) --confirm`
+
+**Bulk mutation — the most destructive KV operation.** Cascade-delete every entry under a prefix. Refuses an empty prefix (that would target the entire store). Always counts matching entries first and prints what would be deleted; it only proceeds when `--confirm` is passed, so running without `--confirm` is a safe dry-run preview. **Agent: only run when explicitly asked to wipe a specific prefix/scope, and confirm the store + prefix first.**
+
+```bash
+# Safe inspection (read tier)
+versori kv stores list
+versori kv count --scope workspace --project 01KH6HD... --environment production
+versori kv list --scope user --project 01KH6HD... --environment production --external-id merchant-42 -o json
+
+# Mutation (only on explicit request) — wipe previews unless --confirm
+versori kv wipe --scope execution --project 01KH6HD... --environment production --execution-id 01KS2T...
+versori kv wipe --scope execution --project 01KH6HD... --environment production --execution-id 01KS2T... --confirm
+```
 
 ### `versori notifications channels list`
 
@@ -635,7 +700,7 @@ production.env
 - **Implied** ("make it live", "get it running on the env", "I want to test it on staging", "publish the new webhook", "put it up so I can hit the URL") → treat as a deploy request.
 - **Ambiguous / implied-only** → confirm the target environment first.
 
-Example confirmation: _"I've prepared the deployment. Deploy version `0.2.0` to production?"_
+Example confirmation: _"I've prepared the deployment. Deploy the latest version to production?"_
 
 Consider using `--dry-run` first when intent is ambiguous. After deploying, tell the user which version is now live on which environment.
 
