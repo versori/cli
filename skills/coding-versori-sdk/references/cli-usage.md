@@ -8,7 +8,7 @@
 - **End-users & activations**: `users create/list`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
 - **Dynamic-variable schema**: `projects variables list/add/update/remove/get/set`
 - **Assets**: `projects assets list/upload/download`
-- **Observability**: `projects logs`, `issues list/get/update`
+- **Observability & alerts**: `projects logs`, `issues list/get/update`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
 - **Issues & resources**: `issues list/get` (read), `issues update` (mutation), `projects edit` (resource limits / replicas — mutation), reading current resources via `projects details -o json`
 - **KV store**: `kv stores list`, `kv list/count/get` (read), `kv set/delete/wipe` (mutation)
 - **Reference material**: `.gitignore`, environment variables, deployment safety, the `.versori` file, workflow recipes, example interactions
@@ -33,6 +33,9 @@ Many commands open an interactive prompt when a flag or positional is omitted. *
 | `versori projects users activate` | `--connection` per template + every required `--variable` | see the command's full entry below |
 | `versori systems create` | `--name`, `--domain`, `--template-base-url` | n/a (user-supplied) |
 | `versori users create` | `--display-name`, `--external-id` | n/a (user-supplied) |
+| `versori notifications channels delete` | `--channel-id`, `--yes` | `versori notifications channels list -o json` |
+| `versori notifications project link` | `--channel-id`, `--environment` | `versori notifications channels list -o json` |
+| `versori notifications project unlink` | `--notification-id`, `--environment`, `--yes` | `versori notifications project list --project <id> -o json` |
 
 Rule of thumb: if `--help` shows an id/flag as optional but the command can't proceed without one, that's an interactive-prompt fallback — pass it explicitly.
 
@@ -690,6 +693,74 @@ versori issues update 01KS2T... --status acked
 versori issues update 01KS2T... --status resolved --resolution-status resolved
 ```
 
+### Notification channels (email alerts)
+
+Issues are inspectable in the UI and via `versori issues list/get`, but **email alerts require a linked notification channel**. The pipeline has three pieces: an org-scoped **channel** (the email inbox), a project-scoped **link** (routes an environment's issues to that channel), and the **issue** itself (`ctx.createIssue()`, auto-submit from `.catch()`, or platform events). Without a link, `ctx.createIssue()` succeeds but no email is sent — the platform logs `no notifications configured` and drops the alert.
+
+### `versori notifications channels list`
+
+List notification channels in the current organisation. Use this before creating a new channel to avoid duplicates.
+
+### `versori notifications channels create --name <name> --email <addr> [--cc <addr>]...`
+
+Create an email notification channel for the current organisation. `--email` sets the primary recipient and must be supplied — service-key tokens carry no user identity, so there is no auto-derivation from the active context. Use `--cc` (repeatable) for additional recipients.
+
+**Agent: ask the user for the recipient email address before invoking.** The CLI hard-exits if `--email` is missing — there is no picker fallback, no JWT lookup, and no env-var default.
+
+Channels are organisation-scoped — create once, bind to as many projects/environments as needed.
+
+### `versori notifications channels delete --channel-id <id> [--yes]`
+
+Delete an org-scoped notification channel. Aliases: `rm`, `remove`. Omit `--channel-id` to get an interactive picker of existing channels by name. Confirms before deleting unless `--yes` is passed.
+
+**Agent: always pass both `--channel-id` (from `versori notifications channels list -o json`) and `--yes`.**
+
+**Project bindings using the deleted channel stop firing.** If you want a clean tear-down, unlink the bindings first with `versori notifications project unlink`.
+
+### `versori notifications project list [--project <project-id>] [--environment <name>]`
+
+List notification-channel bindings on a project. Optionally filter by environment name (e.g. `production`). `--project` defaults from `.versori` when inside a synced project directory.
+
+### `versori notifications project link --channel-id <id> --environment <name> [--name <label>] [--project <project-id>]`
+
+Link an existing channel to a project + environment. After linking, issues raised in that environment by workflow code (`ctx.createIssue()` or `.catch()` blocks) trigger an email through the linked channel.
+
+If `--channel-id` is omitted, the CLI fetches the org's channels and shows an interactive picker (label format: `<channel-name>  (<to-address>)`). If `--environment` is omitted and the project has more than one environment, the CLI shows an environment picker (single-env projects auto-select). `--name` defaults to the channel's name.
+
+**Agent: always pass `--channel-id` and `--environment` explicitly.** Source `--channel-id` from `versori notifications channels list -o json`; `--environment` is the human-readable env name (e.g. `production`).
+
+```bash
+versori notifications channels list
+# → 01KS2TWXJYM...  ops-alerts  george@versori.com
+versori notifications project link \
+  --channel-id 01KS2TWXJYM... \
+  --environment production \
+  --name "ops-alerts (production)"
+# → Linked channel "ops-alerts" to environment "production" on project 01KRR... .
+```
+
+### `versori notifications project unlink --notification-id <id> --environment <name> [--project <project-id>] [--yes]`
+
+Remove a project-notification binding (stops alerts; the channel itself stays). Aliases: `rm`, `delete`. Omit `--notification-id` to pick an existing binding from a list by name. Confirms before deleting unless `--yes` is passed. The channel is not deleted; remove it separately with `versori notifications channels delete`.
+
+**Agent: always pass `--notification-id`, `--environment`, and `--yes`.** Source `--notification-id` from `versori notifications project list --project <id> -o json` (the binding's `id`); `--environment` is the human-readable env name.
+
+```bash
+versori notifications project unlink --notification-id 01KS2TX49C... --environment production --yes
+```
+
+Typical setup for issue-driven email alerts:
+
+```bash
+versori notifications channels list                                # check for an existing channel
+versori notifications channels create --name ops-alerts --email ops@yourco.example  # --email is required (ask the user)
+versori notifications project link \
+  --channel-id <id from channels list> \
+  --environment production \
+  --name "ops-alerts (production)"                                 # routes ctx.createIssue() → email
+versori notifications project list                                  # verify the binding
+```
+
 ### `versori projects edit --environment <env> [--project <id>] [resource flags] [--replicas <n>] [--max-replicas <n>]`
 
 **Mutation — changes an environment's deployment config (resource limits, scaling).** Edit is a
@@ -780,7 +851,7 @@ Warnings go to stderr, so JSON / piped output on stdout stays clean.
 
 **`versori projects sync` has an extra safety net: dry-run by default.** Sync's behaviour differs from every other command because it both _writes_ local files (deleting any that aren't in the remote) and _re-pins_ `.versori`. To protect against accidentally clobbering the wrong directory, `sync` is dry-run by default — without `--confirm` it only prints the diff. Always run it once without `--confirm`, eyeball (or show the user) the create / update / delete list, then re-run with `--confirm` to apply.
 
-**Agent: before invoking any project-scoped command, make the intended local project directory your cwd when local files or `.versori` defaults matter.** This is especially important for `deploy`, `save`, `sync`, logs, assets, systems, variables, and activations. One-liner check:
+**Agent: before invoking any project-scoped command, make the intended local project directory your cwd when local files or `.versori` defaults matter.** This is especially important for `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links. One-liner check:
 
 ```bash
 cat .versori 2>/dev/null || echo '(no .versori in cwd)'

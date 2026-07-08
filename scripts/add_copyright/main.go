@@ -52,6 +52,9 @@ func main() {
 		if filepath.Ext(path) != ".go" {
 			return nil
 		}
+		if strings.HasSuffix(path, ".gen.go") {
+			return nil
+		}
 
 		content, err := os.ReadFile(path)
 		if err != nil {

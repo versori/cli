@@ -287,7 +287,7 @@ Do not log raw credentials, access tokens, refresh tokens, API keys, or full req
 
 #### Escalating to a human
 
-`ctx.log.error(...)` writes to logs — it does **not** create an issue. When a human needs to act (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and via `versori issues list/get`.
+`ctx.log.error(...)` writes to logs — it does **not** create an issue. When a human needs to act (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and via `versori issues list/get`, and can trigger email alerts via a configured **notification channel**.
 
 **Escalate only failures a human can actually act on — distinguish infrastructure from data.** Choose severity to match impact; do not default everything to `high`.
 
@@ -319,13 +319,38 @@ if (resp.status === 404 || resp.status === 401 || resp.status === 403) {
 
 - **Do not raise an issue** (just `log.error` inside the task) for **data-level** failures — schema/validation errors, business-rule 4xx on individual records — or for **per-end-user (dynamic) connections**. Handle in-task and **do not throw** to the workflow `.catch()` — errors that reach `.catch()` auto-submit a **`high`** issue regardless of what the catch handler logs.
 
+**An issue with no linked channel sends no email.** When workflows can raise issues that should alert someone, make sure a channel exists and is linked to the environment. Ask the user for the recipient email (`--email` is required; service-key tokens carry no email claim).
+
+**Setting up email alerts (CLI, end-to-end):**
+
+The pipeline has three pieces: an org-scoped **channel** (the email inbox), a project-scoped **link** (routes an environment's issues to that channel), and the **issue** itself (`ctx.createIssue()`, auto-submit from `.catch()`, or platform events). Without a link, `ctx.createIssue()` succeeds but no email is sent — the platform logs `no notifications configured` and drops the alert.
+
+```bash
+# 1. List existing channels (skip if a suitable one already exists).
+versori notifications channels list
+
+# 2. Create an email channel (--email is required — ask the user).
+versori notifications channels create --name "ops-alerts" --email alerts@example.com
+
+# 3. Link the channel to this project + environment.
+versori notifications project link \
+  --channel-id 01KS2TW... \
+  --environment production \
+  --name "ops-alerts (production)"
+
+# 4. Verify the binding.
+versori notifications project list
+```
+
+To tear down: `versori notifications project unlink` removes a single link (channel survives); `versori notifications channels delete` removes the channel itself (and silently breaks any remaining links). Both prompt to confirm unless `--yes` is passed. Full flag reference: `references/cli-usage.md` (**Notification channels (email alerts)**).
+
 See [Creating Issues](#creating-issues) for the full `ctx.createIssue()` API.
 
 ---
 
 ### Creating Issues
 
-Issues are surfaced in the Versori platform for inspection (UI and `versori issues list/get`).
+Issues are surfaced in the Versori platform for inspection (UI and `versori issues list/get`) and can trigger email alerts when a notification channel is linked to the environment.
 
 When a task throws and the workflow has a **workflow-level** `.catch()`, the runtime ( **`DurableInterpreter`** — production) auto-submits an issue via `submitIssue()` **before** your catch handler runs: severity **`high`** for `Error` throws, **`low`** otherwise. The issue carries error/stack annotations; it is not the same as a hand-authored `ctx.createIssue()` with a custom title and message.
 
@@ -335,7 +360,7 @@ When a task throws and the workflow has a **workflow-level** `.catch()`, the run
 
 **Important:** auto-submit on `.catch()` fires for **every** error that reaches the workflow catch — including data-level failures. For per-record validation errors or dynamic-connection problems, handle them **inside the task** (`try/catch` + `log.error`) and **do not throw** to the workflow `.catch()` unless you want an ops issue.
 
-**When to create one from workflow code:** reserve issues for failures a human can act on — infrastructure/config errors on a *static* connection. Do **not** raise issues for data-validation errors or for per-end-user (dynamic) connection failures. See [Escalating to a human](#escalating-to-a-human) for severity choice.
+**When to create one from workflow code:** reserve issues for failures a human can act on — infrastructure/config errors on a *static* connection. Do **not** raise issues for data-validation errors or for per-end-user (dynamic) connection failures. See [Escalating to a human](#escalating-to-a-human) for severity choice, and ensure a notification channel is linked if email alerts are expected.
 
 **Important:** When deduplication is disabled, never create issues inside a loop — each call creates a separate issue record.
 
