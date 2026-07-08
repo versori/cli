@@ -20,7 +20,8 @@ description: "Link, unlink, and list notification channels on a project + enviro
 
 Link an existing notification channel (created with 'versori notifications channels create')
 to a project + environment. After linking, issues created in that environment by workflow code
-('ctx.createIssue()' or '.catch()' blocks) trigger an email through the channel.
+('ctx.createIssue()' or '.catch()' blocks) also trigger an email through the channel. Issues
+are always visible in the Issues UI without a linked channel — linking only adds email delivery.
 
 If --channel-id or --environment is omitted, the CLI presents an interactive picker of the
 available channels/environments by name. --project defaults from .versori when inside a synced
