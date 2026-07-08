@@ -1,11 +1,26 @@
 ---
 name: coding-versori-sdk
-description: Use this skill whenever the user wants to create, debug, or modify data integration workflows using the versori-run SDK. Also covers deploying projects, viewing or tailing workflow logs, diagnosing failed executions, and managing connections, systems, activations, or notification channels via the `versori` CLI. Also use when the user mentions Versori, `versori-run`, or `@versori/run`. Also use when the user mentions ETL pipelines, API integrations, webhook handlers, scheduled cron workflows, durable workflows, data transformation, file processing, or real-time streaming. Also use in any workspace whose `package.json` or `deno.json` depends on `@versori/run`, including generic Plan-mode "Build" / "implement the plan" prompts and `[Previous conversation summary]` resumes where the prompt itself does not mention Versori.
+description: Use this skill whenever the user wants to create, debug, or modify data integration workflows using the versori-run SDK. Also covers deploying projects, viewing or tailing workflow logs, diagnosing failed executions, and managing connections, systems, activations, or issues via the `versori` CLI. Also use when the user mentions Versori, `versori-run`, or `@versori/run`. Also use when the user mentions ETL pipelines, API integrations, webhook handlers, scheduled cron workflows, durable workflows, data transformation, file processing, or real-time streaming. Also use in any workspace whose `package.json` or `deno.json` depends on `@versori/run`, or where a `.versori` file is present (synced Versori project), including generic Plan-mode "Build" / "implement the plan" prompts and `[Previous conversation summary]` resumes where the prompt itself does not mention Versori. When any of these triggers match, load this skill and read SKILL.md before other work.
 ---
 
 # Versori Integration Skill
 
 Expert-level data integration code using the versori-run SDK.
+
+## Read this skill fully before other work
+
+If you are reading this, a trigger matched — **read this entire `SKILL.md`**, not just the section that looked relevant, before exploration, clarifying questions, or code changes.
+
+**Project markers — check every turn in the active directory:**
+
+- `package.json` or `deno.json` lists `@versori/run` as a dependency
+- a `.versori` file is present (directory synced from the Versori platform)
+
+If either marker is present, this skill is **mandatory** even when the user's prompt is generic ("continue", "implement the plan", "fix the bug") or resumes from `[Previous conversation summary]`.
+
+**Also applies when the task involves:** integration workflow code; `versori` CLI operations (deploy, logs, KV, issues, connections, systems, activations, variables); or keywords such as Versori, ETL, webhooks, cron, or data transformation.
+
+**Resume / Plan-mode:** a prior agent's decision that this skill did not apply does **not** carry through summaries or generic implement-the-plan prompts — re-read this file fresh from the top.
 
 ## Retrieval sources
 
@@ -279,17 +294,19 @@ organization|workspace|project|user|execution` with `--project` / `--environment
 `--external-id` / etc.), which derives the store + key prefix the same way the
 runtime SDK does. See `references/cli-usage.md` for full flags.
 
+**Per-activation `:project:` scoping (common gotcha).** `ctx.openKv(':project:')` is **per activation** — its data lives under each user's activation, not at the project root. From the CLI always reach it with `--scope project --activation-id <activationId>`, **never** `--external-id` on `--scope project` (that flag is ignored for project scope and silently returns 0). Cross-check any zero count with `kv list … --limit 3` before concluding the store is empty — see the per-activation scoping table in `references/cli-usage.md` (**KV store**).
+
 ## CLI Commands
 
-Use the `versori` CLI for any operation that touches the Versori platform: listing / creating / syncing / starring projects, switching contexts, bootstrapping systems, creating or listing connections, uploading or listing project assets, deploying, **viewing or tailing workflow logs**, **diagnosing failed executions**, managing notification channels and their project links, managing activations, end-users, or project / activation variables, and listing or saving project files.
+Use the `versori` CLI for any operation that touches the Versori platform: listing / creating / syncing / starring projects, switching contexts, bootstrapping systems, creating or listing connections, uploading or listing project assets, deploying, **viewing or tailing workflow logs**, **diagnosing failed executions**, managing activations, end-users, or project / activation variables, and listing or saving project files.
 
 **Before running any `versori` command, read `references/cli-usage.md` first.** It is the authoritative source for command names, required and optional flags, defaults, output formats, and pre-flight checks for this CLI. Do not run `versori --help` to discover commands and do not guess flag names — load the reference and use the documented invocation. Only fall back to `versori <command> --help` if the reference is genuinely silent on a command you need.
 
-**Before running any project-scoped `versori` command, switch to the intended local project directory when local files or `.versori` defaults matter.** Do not run from an unrelated synced directory and rely on `--project` to compensate: `--project` changes the remote project ID, but commands such as `deploy`, `save`, `sync`, logs, assets, systems, variables, activations, and notification project links may still read local files or `.versori` from the current/target directory. If operating on a different project, `cd` there first (or pass the command's explicit `--directory`/`-d` and use that directory consistently), then run the CLI command.
+**Before running any project-scoped `versori` command, switch to the intended local project directory when local files or `.versori` defaults matter.** Do not run from an unrelated synced directory and rely on `--project` to compensate: `--project` changes the remote project ID, but commands such as `deploy`, `save`, `sync`, logs, assets, systems, variables, and activations may still read local files or `.versori` from the current/target directory. If operating on a different project, `cd` there first (or pass the command's explicit `--directory`/`-d` and use that directory consistently), then run the CLI command.
 
 **Two-step `versori projects sync`.** `sync` is dry-run by default — invoking it without `--confirm` only prints the create / update / delete diff, it does not touch local files or rewrite `.versori`. Always run it once without `--confirm` first, show the user the diff (especially any deletions), and only re-run with `--confirm` once they confirm — or when the diff is clearly safe (no deletions, expected file changes only). Never invoke `versori projects sync --confirm` as a first step; the dry-run pass is the safety net.
 
-**Run `versori` commands outside any sandbox.** If your environment wraps shell commands in a network-restricted sandbox (Cursor agent mode, Claude Code sandbox, etc.), `versori` calls will fail with a 403 because the CLI authenticates against the Versori API. Run these commands unsandboxed — e.g. in Claude Code use the "run without sandbox" option, in Cursor disable the command sandbox for this shell. The CLI is safe to run directly; it only talks to the configured Versori API and the user's local project directory.
+**Run `versori` commands outside any sandbox.** If your environment wraps shell commands in a network-restricted sandbox (Claude Code sandbox, agent sandboxes, etc.), `versori` calls will fail with a 403 because the CLI authenticates against the Versori API. Run these commands unsandboxed — e.g. in Claude Code use the "run without sandbox" option. The CLI is safe to run directly; it only talks to the configured Versori API and the user's local project directory.
 
 **Always confirm before deploying or bootstrapping** unless the user explicitly says "deploy", "ship it", or "go ahead".
 
@@ -404,6 +421,10 @@ For unknown systems, research APIs and create a research document before generat
 
 Read `references/sdk-guide.md` (the **Logging** and **Creating Issues** sections) before writing observability code. The default bar is high: a human or agent should be able to diagnose a failure **from the logs alone, without asking the workflow to be re-run with extra logging added.** Build this in from the start — do not ship a workflow that logs only "failed" and then wait for a follow-up prompt to add detail.
 
+**Debugging:** when deploy fails, the environment is down, executions restart silently, or logs are unhelpful, run **`versori issues list` before reading source** — especially open **`critical`** issues (`OOM Killed`, `Environment failed to deploy`). Diagnosis flows and CLI examples: `references/cli-usage.md` (**Issues & resource limits** → *Platform critical issues*). If no platform issue explains it, follow **Diagnosing a workflow failure from logs** there; cross-check issues again if logs are empty or only `info`.
+
+**Writing issues:** issues come from `ctx.createIssue()`, **auto-submit** when a thrown error reaches a workflow-level `.catch()` (`high`/`low`), or platform lifecycle events. `ctx.log.error` does not create an issue — use `createIssue` only for **static-connection infrastructure failures** a human can fix; handle data-level and dynamic-connection errors in-task and **do not throw** to `.catch()`. Severity rules (`critical` vs `high`, etc.): `references/sdk-guide.md` (**Escalating to a human**). Issues are always inspectable in the UI and via `versori issues list/get`.
+
 **Log semantically and richly around every external call — by default, not on request:**
 
 - Before each outbound call: log the method, the resolved path, and the request payload (full if small; a summarised shape — keys, counts, ids — if large).
@@ -411,12 +432,11 @@ Read `references/sdk-guide.md` (the **Logging** and **Creating Issues** sections
 - On a caught error: log the proximate cause **and the specific input that triggered it** (the offending record/id), so the failure is reproducible from the log line.
 - Never log secrets (credentials, tokens, API keys, or bodies containing them). See the never-log-secrets rule in the SDK guide.
 
-**Escalate to a human with an issue when — and only when — a human can actually fix it.** `ctx.log.error` writes a log; it does not notify anyone. Call `ctx.createIssue({...})` (and wire up a notification channel) for failures that are **infrastructure/config problems on a static connection**, not data problems:
+**Add performance/memory logging whenever the workflow may hold a lot of data in memory — proactively, without being asked.** Environments have a fixed memory limit and the platform will OOM-kill a container that exceeds it (surfacing a `critical` `OOM Killed` issue — see `references/cli-usage.md`, **Platform critical issues**). Whenever you write code that could accumulate unbounded or large data in memory, build in size-aware logging *and* prefer a streaming/batched shape over loading everything at once:
 
-- **Do raise an issue** (severity `high`) when a *crucial* endpoint on a **static** connection fails with a **non-user, non-data** error: expired/invalid credentials (401/403), endpoint not found / wrong base URL (404), server errors (5xx), or DNS/connection failures. These mean the integration itself is broken for everyone and a human must rotate a credential, fix config, or contact the vendor.
-- **Do not raise an issue** (just `log.error` / `.catch`) for data-level failures — validation errors, business-rule 4xx, malformed individual records — or for errors on **per-end-user (dynamic) connections**, where the end user supplied bad/expired credentials. Those are the data's or the user's problem, not an ops page, and high-volume ones would spam the channel.
-
-**Make sure issues actually reach someone.** An issue with no linked notification channel is silently dropped. When a project's workflows can raise issues, ensure an email **channel** exists and is **linked** to the environment — defaulting the recipient to the project creator's / current user's email (ask them for the address; service-key tokens carry no email). See the channel-setup CLI steps in `references/cli-usage.md` and `references/sdk-guide.md`.
+- Buffering a full API response, reading an entire file, or `Promise.all`-ing a large fan-out: log the count and an approximate size (e.g. record count, byte length) before and after, so an OOM is diagnosable from the logs instead of a silent restart.
+- Accumulating results across a paginated loop or an unbounded array: log the running size each page, and stream/flush in batches (write to KV, emit downstream, or `for await` per page) rather than collecting the whole set in one array.
+- Call it out to the user when you spot an unbounded-memory pattern, and say what you did (streamed / batched / capped) — this is the code-level counterpart to bumping the memory limit.
 
 ## Research Phase
 
@@ -442,16 +462,8 @@ See `references/research-docs.md` for the required document structure, inclusion
 
 Before writing any workflow code, read `references/sdk-guide.md` for the full Versori Run SDK guide covering core concepts (workflows, triggers, tasks, interpreters), usage patterns (scheduled workflows, webhooks, HTTP tasks, error handling, durable workflows, KV storage), context API, type signatures, and best practices for code generation.
 
-## Plan-mode and resume behaviour
+## Plan-mode: keep implement-the-plan re-triggering this skill
 
-Plan mode's **Build** button can send a domain-neutral prompt similar to — _"Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself. To-do's from the plan have already been created..."_ — that contains no Versori keywords. To make sure the Build invocation re-triggers this skill, when you author a plan in plan mode for a project that uses `@versori/run`, embed this line at the very top of the plan file (under the title, before any todo list):
+"Implement the plan", Plan-mode Build, and similar domain-neutral prompts can arrive with no Versori keywords. To make sure the next agent turn re-triggers this skill, when you author a plan for a project that uses `@versori/run`, embed this line at the very top of the plan file (under the title, before any todo list):
 
 > **Required reading:** before executing any task below, load `skills/coding-versori-sdk/SKILL.md`. This plan implements code on top of `@versori/run` and depends on its conventions.
-
-Re-read this SKILL.md as your first action — regardless of the user's literal wording, and even if a prior agent in the same session decided this skill did not apply — in any of the following cases inside a workspace whose `package.json` or `deno.json` depends on `@versori/run`:
-
-- resuming from a `[Previous conversation summary]` or any other chat resume
-- a Plan-mode "Build" / "implement the plan" invocation
-- any other generic, domain-neutral prompt (e.g. "implement the plan as specified", "continue", "finish that")
-
-The previous agent's skill-evaluation decision does not carry through summaries.

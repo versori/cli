@@ -2692,7 +2692,7 @@ paths:
         - name: severity
           in: query
           description: |
-            Filter issues by severity. Can be one of 'low', 'medium', or 'high'.
+            Filter issues by severity. Can be one of 'low', 'medium', 'high', or 'critical'.
             If not provided, issues of all severities are returned.
           schema:
             $ref: '#/components/schemas/IssueSeverityEnum'
@@ -6733,6 +6733,7 @@ components:
     IssueSeverityEnum:
       type: string
       enum:
+        - critical
         - high
         - low
         - medium

@@ -83,5 +83,9 @@ func GetRootCommand() *cobra.Command {
 	kvCommand := newKvCommand(configFactory)
 	rootCmd.AddCommand(kvCommand)
 
+	// issues command
+	issuesCommand := newIssuesCommand(configFactory)
+	rootCmd.AddCommand(issuesCommand)
+
 	return rootCmd
 }
