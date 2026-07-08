@@ -8,7 +8,8 @@
 - **End-users & activations**: `users create/list`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
 - **Dynamic-variable schema**: `projects variables list/add/update/remove/get/set`
 - **Assets**: `projects assets list/upload/download`
-- **Observability & alerts**: `projects logs`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
+- **Observability & alerts**: `projects logs`, `issues list/get/update`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
+- **Issues & resources**: `issues list/get` (read), `issues update` (mutation), `projects edit` (resource limits / replicas — mutation), reading current resources via `projects details -o json`
 - **KV store**: `kv stores list`, `kv list/count/get` (read), `kv set/delete/wipe` (mutation)
 - **Reference material**: `.gitignore`, environment variables, deployment safety, the `.versori` file, workflow recipes, example interactions
 
@@ -60,6 +61,16 @@ The id can also be supplied on stdin by passing `-`, e.g. `echo 01KH6HD... | ver
 
 ```bash
 versori projects details 01KH6HD... -o json
+```
+
+**Reading current resource limits.** The default table view hides them, but `-o json` exposes each
+environment's deployment spec — including the memory / CPU / storage limits and requests. This is
+the read path for "how much memory does this project have?" (there is no separate resources
+command); edit them with `versori projects edit` (below).
+
+```bash
+versori projects details 01KH6HD... -o json \
+  | jq '.environments[] | {name, resources: .config.deploymentSpec.resources, replicas: .config.deploymentSpec.replicas}'
 ```
 
 ### `versori project sync --directory <dir> --project <id>`
@@ -497,7 +508,7 @@ Each entry has these fields:
 
 #### Diagnosing a workflow failure from logs
 
-When a user reports a broken workflow, **read logs before reading workflow source.** Logs tell you what actually happened (which task, which input, which upstream response); the source only tells you what the code intends to do.
+When a user reports a broken workflow, **check open critical issues first** (`OOM Killed`, `Environment failed to deploy` — see **Platform critical issues** below). If none explain it, **read logs before reading workflow source.** Logs tell you what actually happened (which task, which input, which upstream response); the source only tells you what the code intends to do.
 
 The pattern is _find the error → pull the full execution trace → walk it top-to-bottom → report the failure point with input + upstream response_.
 
@@ -534,7 +545,7 @@ The pattern is _find the error → pull the full execution trace → walk it top
 
    Only after that diagnosis, propose a code change.
 
-If logs are empty for the window, the workflow has not been triggered yet — confirm with the user that the source event has actually fired before assuming a runtime issue. If logs show only `info` lines and no error, the failure may be platform-side (deploy mis-configured, connection invalid, dynamic-variable missing) rather than in workflow code.
+If logs are empty for the window, the workflow has not been triggered yet — confirm with the user that the source event has actually fired before assuming a runtime issue. If logs show only `info` lines and no error, the failure may be platform-side — list open issues (especially `critical`) for deploy/OOM failures, or check deploy mis-configured connections, invalid dynamic variables, etc.
 
 ## KV store
 
@@ -546,6 +557,31 @@ Every command targets a store in one of two ways:
 - **Friendly**: `--scope <organization|workspace|project|user|execution>` plus the identifiers that scope needs (`--project`, `--environment`, `--external-id`, `--execution-id`, `--activation-id`). The CLI derives the store name and key prefix exactly the way the runtime SDK does, and strips the scope prefix from displayed keys (pass `--full-keys` to keep it). Extra `--prefix` segments narrow within the scope.
 
 `--store` and `--scope` are mutually exclusive. Friendly `--project` defaults from `.versori` like other project commands. Scope prefixes follow the SDK: `organization` → `[org]`, `workspace` → `[org, project, env]`, `project` → `[org, project, env(, activationId)]`, `user` → `[org, project, env, sha256(externalId)]`, `execution` → `[org, project, env, executionId(, activationId)]`.
+
+### Scoping per-activation `:project:` KV (CRITICAL)
+
+`ctx.openKv(':project:')` in workflow code is **per activation** — each user activation gets its own isolated slice of the project store, keyed under the activation ID segment. When inspecting that data from the CLI:
+
+- **USE** `--scope project --activation-id <activationId>`. Resolve the ID with `versori projects users list --environment <env> -o json` → `.items[] | select(.status == "active") | {externalId, activationId}` (only active rows carry `activationId`, and `--environment` is required).
+- **DO NOT** use `--external-id` on `--scope project` to reach per-activation data. `--external-id` is **silently ignored** for `--scope project` (it only applies to `--scope user`), so the prefix resolves to `[org, project, env]` with no activation segment. It does **not** match what the Versori UI KV browser shows and can return **0** even when thousands of rows exist under an activation.
+
+| Scope | Isolation | CLI selector |
+|---|---|---|
+| `:project:` | Per activation | `--scope project --activation-id <id>` |
+| `:workspace:` | Shared across the whole project/environment | `--scope workspace` (no activation) |
+| `:user:` | Per end user (hashed external ID) | `--scope user --external-id <id>` |
+
+**Zero-count sanity check:** if `kv count` returns 0 but the UI shows data, re-run with `--activation-id` and confirm with `kv list … --limit 3 -o json`. Never report "KV is empty" from a single zero count alone.
+
+### Prefix segments are exact path segments, not substring matches
+
+Each `--prefix` value is one **exact** key segment appended after the resolved scope prefix (the flag is repeatable); it is not a glob or substring filter. For a key like `orders/order-42`, `--prefix orders` matches it, but `--prefix order` does **not** — there is no segment literally named `order`. Likewise `--prefix orders --prefix order` looks for a child segment named exactly `order`, not segments such as `order-42` that merely start with it. To filter keys by a partial segment, list the parent prefix and filter client-side with `jq`:
+
+```bash
+versori kv list --scope project --environment production --activation-id "$AID" \
+  --prefix orders --limit 100 -o json \
+  | jq -r '.data[].key | ltrimstr("orders/") | select(startswith("order-"))'
+```
 
 **Value encoding.** Workflow code writes KV values via the SDK, which JSON-encodes them (so stored values are JSON strings). `kv set` uses the same encoding, and the read commands unwrap one level by default so values render as structures rather than escaped strings. Pass `--raw-values` to `list` / `get` to see exactly what is stored.
 
@@ -600,6 +636,67 @@ versori kv wipe --scope execution --project 01KH6HD... --environment production 
 versori kv wipe --scope execution --project 01KH6HD... --environment production --execution-id 01KS2T... --confirm
 ```
 
+## Issues & resource limits
+
+Issues are the org-scoped alert feed: raised by explicit `ctx.createIssue()` in workflow code, **auto-submitted when a task error reaches a workflow-level `.catch()`** (production runtime), or by the **platform** (OOM / deploy failure). All issues are inspectable in the UI and via `versori issues list/get`. Read commands are safe; `issues update` is a mutation.
+
+**Severity levels:** `critical`, `high`, `medium`, `low`. The platform auto-raises **`critical`** for OOM and deploy-failure lifecycle events. Workflow code may also use **`critical`** when a static-connection failure means the integration cannot work at all for every user (e.g. 404, 401/403); use **`high`** for serious but possibly transient failures (e.g. 5xx). Full guidance: `references/sdk-guide.md` (**Escalating to a human**).
+
+### Platform critical issues (OOM & deploy failure)
+
+The platform creates these automatically — do not duplicate these titles from workflow code.
+
+| Title | Severity | Typical cause | Diagnosis |
+|---|---|---|---|
+| `OOM Killed` | `critical` | Memory limit exceeded; container restarted | 1. `issues get <id>` for env/project context. 2. Pull logs before the kill — look for large buffers, unbounded arrays, missing pagination. 3. Read limits: `projects details <id> -o json \| jq '.environments[] \| select(.name=="production") \| .config.deploymentSpec.resources'`. 4. Mitigate: stream/batch in code **or** raise limits with `projects edit` (mutation — approval required). |
+| `Environment failed to deploy` | `critical` | Deploy/build/config step failed; environment not live | 1. `issues get <id>`. 2. Re-run local validation: `deno install && deno check src/index.ts`. 3. Check missing static connections (`projects systems list`), dynamic-variable schema mismatches, and the deploy command output. 4. Fix and redeploy. |
+
+**When to list issues first:** deploy just failed; environment shows as not deployed; executions restart silently; user reports "nothing is running"; or logs are empty/unhelpful after an incident.
+
+```bash
+# all open critical issues for a project
+versori issues list --status open --project 01KH6HD... -o json \
+  | jq '.items[] | select(.severity == "critical")'
+
+# platform OOM / deploy failures specifically
+versori issues list --status open --project 01KH6HD... -o json \
+  | jq '.items[] | select(.title == "OOM Killed" or .title == "Environment failed to deploy")'
+```
+
+### `versori issues list [--status <s>] [--severity <s>] [--project <id>] [--environment <id>] [--first <n>] [--after <cursor>]`
+
+List issues for the current organisation. All filters optional. `--status` is one of `open`,
+`acked`, `closed`, `resolved`; `--severity` is `critical`, `low`, `medium`, `high`. `--project` defaults from
+`.versori` inside a synced project directory (omit both `--project` and `.versori` to list every
+project in the org). Newest first; page with `--after <last-issue-id>`.
+
+```bash
+versori issues list --status open                       # all open issues in the org
+versori issues list --project 01KH6HD... --severity critical # critical issues for one project
+versori issues list --status open -o json | jq '.items[] | select(.title=="OOM Killed")'
+```
+
+### `versori issues get <issue-id> [--project <id>]`
+
+Full detail for a single issue — message, labels, annotations, reason, project/environment IDs.
+There is **no server-side get-by-id**, so this walks the org's issue list newest-first and matches
+client-side; pass `--project` to scope the walk and reach older issues faster. Read-only.
+
+### `versori issues update <issue-id> (--status <s> | --resolution-status <s> | --severity <s>)`
+
+**Mutation.** Change an issue's status (`open`/`acked`/`closed`/`resolved`), resolution status
+(`resolved`/`negated`/`ignored`), or severity (`critical`/`low`/`medium`/`high`). Only the flags you pass change; requires at least
+one. **Agent: only run when the user explicitly asks to ack/resolve/change an issue.**
+
+```bash
+versori issues update 01KS2T... --status acked
+versori issues update 01KS2T... --status resolved --resolution-status resolved
+```
+
+### Notification channels (email alerts)
+
+Issues are inspectable in the UI and via `versori issues list/get`, but **email alerts require a linked notification channel**. The pipeline has three pieces: an org-scoped **channel** (the email inbox), a project-scoped **link** (routes an environment's issues to that channel), and the **issue** itself (`ctx.createIssue()`, auto-submit from `.catch()`, or platform events). Without a link, `ctx.createIssue()` succeeds but no email is sent — the platform logs `no notifications configured` and drops the alert.
+
 ### `versori notifications channels list`
 
 List notification channels in the current organisation. Use this before creating a new channel to avoid duplicates.
@@ -649,8 +746,6 @@ Remove a project-notification binding (stops alerts; the channel itself stays). 
 **Agent: always pass `--notification-id`, `--environment`, and `--yes`.** Source `--notification-id` from `versori notifications project list --project <id> -o json` (the binding's `id`); `--environment` is the human-readable env name.
 
 ```bash
-versori notifications project unlink
-# → prompts for env, then for binding to remove, then confirms
 versori notifications project unlink --notification-id 01KS2TX49C... --environment production --yes
 ```
 
@@ -666,6 +761,37 @@ versori notifications project link \
 versori notifications project list                                  # verify the binding
 ```
 
+### `versori projects edit --environment <env> [--project <id>] [resource flags] [--replicas <n>] [--max-replicas <n>]`
+
+**Mutation — changes an environment's deployment config (resource limits, scaling).** Edit is a
+merge: only the flags you pass change, everything else in the environment config is preserved. Read
+the current values first with `versori projects details <id> -o json` (see that entry).
+
+Resource flags (Kubernetes-style quantities):
+
+| Flag | Example | Meaning |
+|---|---|---|
+| `--resource.memory.requests` | `512Mi` | Guaranteed memory |
+| `--resource.memory.limits` | `1Gi` | Hard memory cap (exceeding it → OOM kill) |
+| `--resource.cpu.requests` | `100m` | Guaranteed CPU (m = millicores) |
+| `--resource.cpu.limits` | `500m` | CPU cap |
+| `--resource.storage.requests` | `1Gi` | Ephemeral storage request |
+| `--resource.storage.limits` | `2Gi` | Ephemeral storage cap |
+| `--replicas` | `2` | Fixed replica count |
+| `--max-replicas` | `4` | Enables autoscaling up to this many replicas |
+
+**Agent: this is billable, infra-level state — treat it like a deploy.** Show the current limits,
+propose the change, and only run on explicit approval. The common trigger is a **`critical`** `OOM Killed` issue:
+
+```bash
+# 1. read current memory limit for the affected env
+versori projects details 01KH6HD... -o json \
+  | jq '.environments[] | select(.name=="production") | .config.deploymentSpec.resources'
+# 2. after the user approves, raise it (requests ≤ limits)
+versori projects edit --project 01KH6HD... --environment production \
+  --resource.memory.limits 1Gi --resource.memory.requests 512Mi
+```
+
 ## Recommended `.gitignore`
 
 Both `sync` and `deploy` respect `.gitignore` — files matched by it will not be deployed or deleted during a sync. Always ensure a `.gitignore` exists in the project directory. Minimum recommended content:
@@ -679,10 +805,13 @@ production.env
 .git/
 .vscode/
 .cursor/
+.claude/
 .gitignore
 ```
 
-`.gitignore` ignores itself on purpose. Without this entry, `versori project sync` deletes the local `.gitignore` (it is not uploaded to the platform), which then exposes `.cursor/` and friends to being deleted on subsequent syncs.
+Being listed in `.gitignore` protects a file **both ways**: it is neither uploaded/deployed nor deleted during a sync. Use it for personal local files (editor/agent config like `.vscode/` / `.cursor/` / `.claude/`, local notes, secrets) you want to keep on disk but never push or lose.
+
+`.gitignore` ignores itself on purpose. Without this entry, `versori project sync` deletes the local `.gitignore` (it is not uploaded to the platform), which then exposes `.cursor/` / `.claude/` and friends to being deleted on subsequent syncs.
 
 ## Environment Variables
 

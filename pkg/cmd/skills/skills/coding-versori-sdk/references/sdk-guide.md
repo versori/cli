@@ -287,30 +287,52 @@ Do not log raw credentials, access tokens, refresh tokens, API keys, or full req
 
 #### Escalating to a human
 
-`ctx.log.error(...)` writes to logs — it does **not** notify anyone. When a human needs to be alerted (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and can trigger email alerts via a configured **notification channel**.
+`ctx.log.error(...)` writes to logs — it does **not** create an issue. When a human needs to act (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and via `versori issues list/get`, and can trigger email alerts via a configured **notification channel**.
 
-**Escalate only failures a human can actually act on — distinguish infrastructure from data.** The line to draw:
+**Escalate only failures a human can actually act on — distinguish infrastructure from data.** Choose severity to match impact; do not default everything to `high`.
 
-- **Raise an issue** (severity `high`) when a *crucial* endpoint on a **static** connection fails with a **non-user, non-data** error — expired/invalid credentials (401/403), endpoint not found / wrong base URL (404), server errors (5xx), or DNS/connection failures. These mean the integration is broken for everyone until an operator rotates a credential, fixes config, or contacts the vendor. This is exactly what a person needs to be paged about.
-- **Do not raise an issue** (just `log.error` / let `.catch` run) for **data-level** failures — schema/validation errors, business-rule 4xx, a single malformed record — or for failures on **per-end-user (dynamic) connections**, where the end user supplied bad or expired credentials. Those are the data's or the user's problem, not an ops page, and high-volume ones would flood the channel. Surface them in logs (and, for dynamic connections, through whatever end-user-facing re-auth flow the product has) instead.
+| Severity | When to use (static connection, non-data failures) |
+|---|---|
+| **`critical`** | The integration **cannot work at all** for every user until fixed — a definite config/wiring break on a **static** connection. Examples: **404** (wrong base URL or endpoint path for all traffic), **401/403** (static credentials invalid/expired for everyone), DNS/connection failures to the configured host. |
+| **`high`** | Serious but not a guaranteed total outage — may be transient or vendor-side. Examples: **5xx** from a crucial static endpoint (upstream may recover; not necessarily something the operator can fix immediately), repeated timeouts after retries exhausted. |
+| **`medium` / `low`** | Degraded but not blocking — use sparingly for ops alerts. |
 
-**An issue with no linked channel is silently dropped**, so when workflows can raise issues, make sure a channel exists and is linked (next). Default the recipient to the **project creator's / current user's email** — ask the user for the address, since service-key tokens carry no email claim.
+```typescript
+// static connection health check — severity follows impact
+const resp = await ctx.fetch(staticConnection, '/health');
+if (resp.status === 404 || resp.status === 401 || resp.status === 403) {
+  await ctx.createIssue({
+    severity: 'critical',
+    title: 'Static connection unreachable',
+    message: `GET /health returned ${resp.status} — integration cannot run until config/credentials are fixed.`,
+    annotations: { status: String(resp.status), connection: 'static-api' },
+  });
+} else if (resp.status >= 500) {
+  await ctx.createIssue({
+    severity: 'high',
+    title: 'Static connection upstream error',
+    message: `GET /health returned ${resp.status} — may be transient vendor-side.`,
+    annotations: { status: String(resp.status), connection: 'static-api' },
+  });
+}
+```
+
+- **Do not raise an issue** (just `log.error` inside the task) for **data-level** failures — schema/validation errors, business-rule 4xx on individual records — or for **per-end-user (dynamic) connections**. Handle in-task and **do not throw** to the workflow `.catch()` — errors that reach `.catch()` auto-submit a **`high`** issue regardless of what the catch handler logs.
+
+**An issue with no linked channel sends no email.** When workflows can raise issues that should alert someone, make sure a channel exists and is linked to the environment. Ask the user for the recipient email (`--email` is required; service-key tokens carry no email claim).
 
 **Setting up email alerts (CLI, end-to-end):**
 
-The pipeline has three pieces: an org-scoped **channel** (the email inbox), a project-scoped **link** (the routing rule that says "this env's issues alert that channel"), and the **issue** itself (created by workflow code via `ctx.createIssue()`). Without a link, `ctx.createIssue()` succeeds but no email is sent — the platform logs `no notifications configured` and drops the alert. All three steps run via CLI:
+The pipeline has three pieces: an org-scoped **channel** (the email inbox), a project-scoped **link** (routes an environment's issues to that channel), and the **issue** itself (`ctx.createIssue()`, auto-submit from `.catch()`, or platform events). Without a link, `ctx.createIssue()` succeeds but no email is sent — the platform logs `no notifications configured` and drops the alert.
 
 ```bash
 # 1. List existing channels (skip if a suitable one already exists).
 versori notifications channels list
 
-# 2. Create an email channel. --email defaults to the JWT email claim on the
-#    current context, so omit it to alert the user who is logged in.
-versori notifications channels create --name "ops-alerts"
+# 2. Create an email channel (--email is required — ask the user).
 versori notifications channels create --name "ops-alerts" --email alerts@example.com
 
 # 3. Link the channel to this project + environment.
-#    Omit any flag and the CLI prompts with a picker (channel-name picker, env-name picker).
 versori notifications project link \
   --channel-id 01KS2TW... \
   --environment production \
@@ -320,7 +342,7 @@ versori notifications project link \
 versori notifications project list
 ```
 
-To tear down: `versori notifications project unlink` removes a single link (channel survives); `versori notifications channels delete` removes the channel itself (and silently breaks any remaining links). Both prompt to confirm unless `--yes` is passed, and both accept either a flag-based ID or an interactive name picker.
+To tear down: `versori notifications project unlink` removes a single link (channel survives); `versori notifications channels delete` removes the channel itself (and silently breaks any remaining links). Both prompt to confirm unless `--yes` is passed. Full flag reference: `references/cli-usage.md` (**Notification channels (email alerts)**).
 
 See [Creating Issues](#creating-issues) for the full `ctx.createIssue()` API.
 
@@ -328,19 +350,25 @@ See [Creating Issues](#creating-issues) for the full `ctx.createIssue()` API.
 
 ### Creating Issues
 
-Issues are notifications surfaced in the Versori platform. They can trigger email alerts and are available for inspection in the UI.
+Issues are surfaced in the Versori platform for inspection (UI and `versori issues list/get`) and can trigger email alerts when a notification channel is linked to the environment.
 
-Issues are created **automatically** when a `.catch()` block executes. You can also create them **manually** with `ctx.createIssue()` from any task.
+When a task throws and the workflow has a **workflow-level** `.catch()`, the runtime ( **`DurableInterpreter`** — production) auto-submits an issue via `submitIssue()` **before** your catch handler runs: severity **`high`** for `Error` throws, **`low`** otherwise. The issue carries error/stack annotations; it is not the same as a hand-authored `ctx.createIssue()` with a custom title and message.
 
-**When to create one:** reserve issues for failures a human can act on — infrastructure/config errors on a *static* connection (expired credentials, 404 endpoint, 5xx, DNS). Do **not** raise issues for data-validation errors or for per-end-user (dynamic) connection failures. See [Escalating to a human](#escalating-to-a-human) for the full rule, and ensure a notification channel is linked or the issue is dropped silently.
+**Manual issues:** call `ctx.createIssue()` from any task when you want a specific title, message, and severity. Pick the lowest severity that matches impact — see [Escalating to a human](#escalating-to-a-human) (`critical` for total static-connection outages like 404/401; `high` for serious but possibly transient failures like 5xx).
 
-**Important:** When deduplication is disabled, never create issues inside a loop — each issue can trigger multiple emails.
+**Platform issues:** the platform auto-raises **`critical`** for `OOM Killed` and `Environment failed to deploy` — inspect with `versori issues list/get` (see `references/cli-usage.md`, **Platform critical issues**). Do not duplicate those specific platform titles from workflow code.
+
+**Important:** auto-submit on `.catch()` fires for **every** error that reaches the workflow catch — including data-level failures. For per-record validation errors or dynamic-connection problems, handle them **inside the task** (`try/catch` + `log.error`) and **do not throw** to the workflow `.catch()` unless you want an ops issue.
+
+**When to create one from workflow code:** reserve issues for failures a human can act on — infrastructure/config errors on a *static* connection. Do **not** raise issues for data-validation errors or for per-end-user (dynamic) connection failures. See [Escalating to a human](#escalating-to-a-human) for severity choice, and ensure a notification channel is linked if email alerts are expected.
+
+**Important:** When deduplication is disabled, never create issues inside a loop — each call creates a separate issue record.
 
 #### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `severity` | `'low' \| 'medium' \| 'high'` | Yes | Severity level |
+| `severity` | `'low' \| 'medium' \| 'high' \| 'critical'` | Yes | Severity level — see [Escalating to a human](#escalating-to-a-human) |
 | `title` | `string` | Yes | Short title |
 | `message` | `string` | Yes | Detailed description |
 | `annotations` | `Record<string, string>` | Yes | Key-value metadata |
