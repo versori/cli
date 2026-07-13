@@ -91,7 +91,7 @@ func (u *update) Run(_ *cobra.Command, args []string) {
 
 	err := u.configFactory.
 		NewRequest().
-		WithMethod(http.MethodPut).
+		WithMethod(http.MethodPatch).
 		WithPath("o/:organisation/issues/" + issueID).
 		JSONBody(body).
 		Do()
