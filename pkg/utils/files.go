@@ -23,7 +23,8 @@ import (
 )
 
 // CollectFiles walks the provided fullPath directory and returns files suitable for upload.
-// It respects .gitignore rules in that directory. If dryRun is true, file contents are omitted.
+// It respects .gitignore rules in that directory, as well as the global ignore list (e.g.
+// the .git directory) that always applies. If dryRun is true, file contents are omitted.
 func CollectFiles(fullPath string, dryRun bool) ([]v1.File, error) {
 	matcher := NewChecker()
 
@@ -58,10 +59,6 @@ func CollectFiles(fullPath string, dryRun bool) ([]v1.File, error) {
 		}
 
 		if entry.IsDir() {
-			if entry.Name() == ".git" {
-				return filepath.SkipDir
-			}
-
 			return nil
 		}
 
