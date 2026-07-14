@@ -21,6 +21,14 @@ import (
 	"strings"
 )
 
+// globalIgnoredNames are path components that are ALWAYS ignored by every
+// command, regardless of whether a .gitignore is present or what it contains.
+// Files or directories with any of these names must never be uploaded, edited
+// or deleted. These take precedence over .gitignore negation (!) rules.
+var globalIgnoredNames = map[string]struct{}{
+	".git": {},
+}
+
 // Matcher checks whether files should be ignored based on .gitignore rules.
 type Matcher struct {
 	basePath string
@@ -71,6 +79,12 @@ func (m *Matcher) LoadFile(dir string) error {
 // Match returns true if the given path should be ignored.
 // The path should be an absolute path, and fi provides file info.
 func (m *Matcher) Match(path string, fi os.FileInfo) bool {
+	// Global ignores always apply, even when no .gitignore is loaded, and
+	// cannot be overridden by a negation rule in .gitignore.
+	if _, ok := globalIgnoredNames[filepath.Base(path)]; ok {
+		return true
+	}
+
 	if m.basePath == "" || len(m.patterns) == 0 {
 		return false
 	}
