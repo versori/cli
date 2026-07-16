@@ -25,20 +25,28 @@ import (
 )
 
 // maxGetPages caps how many list pages `issues get` walks looking for the target ID. The platform
-// exposes no GET-by-id endpoint, so we page the (org-scoped) list and match client-side; the cap
-// bounds the work for a very large backlog. Narrow with --project to reach older issues faster.
+// exposes no GET-by-id endpoint, so we page the issue list and match client-side; the cap bounds the
+// work for a very large backlog. Narrow with --project (or use the project-scoped variant) to reach
+// older issues faster.
 const maxGetPages = 100
 
 type get struct {
 	configFactory *config.ConfigFactory
 	projectId     flags.ProjectId
+	projectScoped bool
+	env           string
 }
 
-// NewGet builds `issues get <issue-id>` — fetch a single issue's full detail. The platform has no
-// GET-by-id endpoint, so this walks the org's issue list (newest first) and matches client-side.
-// Pass --project to scope the walk to one project and reach older issues sooner. Read-only.
-func NewGet(c *config.ConfigFactory) *cobra.Command {
-	g := &get{configFactory: c}
+// NewGet builds the org-level `issues get <issue-id>` — fetch a single issue's full detail by
+// walking the org's issue list (newest first). --project is an optional filter that scopes the walk.
+func NewGet(c *config.ConfigFactory) *cobra.Command { return newGet(c, false) }
+
+// NewProjectGet builds the project-scoped `projects issues get <issue-id>`. --project is required
+// (defaults from .versori) and --environment is an environment name resolved against the project.
+func NewProjectGet(c *config.ConfigFactory) *cobra.Command { return newGet(c, true) }
+
+func newGet(c *config.ConfigFactory, projectScoped bool) *cobra.Command {
+	g := &get{configFactory: c, projectScoped: projectScoped}
 
 	cmd := &cobra.Command{
 		Use:   "get <issue-id>",
@@ -48,6 +56,9 @@ func NewGet(c *config.ConfigFactory) *cobra.Command {
 	}
 
 	g.projectId.SetFlag(cmd.Flags())
+	if projectScoped {
+		cmd.Flags().StringVar(&g.env, "environment", "", "Environment name to filter by (auto-selected when the project has exactly one environment)")
+	}
 
 	return cmd
 }
@@ -55,10 +66,7 @@ func NewGet(c *config.ConfigFactory) *cobra.Command {
 func (g *get) Run(_ *cobra.Command, args []string) {
 	target := args[0]
 
-	projectId := g.projectId.GetProjectIDFromDir(".")
-	if projectId != "" {
-		config.MaybeApplyVersoriContextForProject(".", projectId)
-	}
+	projectId, envId := g.resolveScope()
 
 	after := ""
 	for page := 0; page < maxGetPages; page++ {
@@ -69,6 +77,9 @@ func (g *get) Run(_ *cobra.Command, args []string) {
 
 		if projectId != "" {
 			req = req.WithQueryParam("project_id", projectId)
+		}
+		if envId != "" {
+			req = req.WithQueryParam("environment_id", envId)
 		}
 		if after != "" {
 			req = req.WithQueryParam("after", after)
@@ -101,4 +112,20 @@ func (g *get) Run(_ *cobra.Command, args []string) {
 	}
 
 	utils.NewExitError().WithMessage("issue " + target + " not found (try --project to narrow the search, or the issue may be older than the pages scanned)").Done()
+}
+
+// resolveScope mirrors list.resolveScope: org-level treats --project as an optional filter and
+// --environment as a raw ID; project-scoped requires --project and resolves --environment by name.
+func (g *get) resolveScope() (projectId, envId string) {
+	if g.projectScoped {
+		projectId = g.projectId.GetFlagOrDie(".")
+		return projectId, resolveEnvironmentId(g.configFactory, projectId, g.env)
+	}
+
+	projectId = g.projectId.GetProjectIDFromDir(".")
+	if projectId != "" {
+		config.MaybeApplyVersoriContextForProject(".", projectId)
+	}
+
+	return projectId, g.env
 }

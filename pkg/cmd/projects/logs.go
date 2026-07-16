@@ -28,11 +28,15 @@ import (
 	"github.com/versori/cli/pkg/utils"
 )
 
+const maxLogWindow = 7 * 24 * time.Hour
+
 type logs struct {
 	configFactory *config.ConfigFactory
 	projectId     flags.ProjectId
 	env           string
 	since         string
+	start         string
+	end           string
 	limit         int
 	search        string
 }
@@ -65,7 +69,9 @@ func NewLogs(c *config.ConfigFactory) *cobra.Command {
 	l.projectId.SetFlag(f)
 
 	f.StringVar(&l.env, "environment", "", "The environment to retrieve logs for. e.g. (production, staging)")
-	f.StringVar(&l.since, "since", "24h", "Go duration since now, e.g. 24h, 2h30m (default: 24h)")
+	f.StringVar(&l.since, "since", "24h", "Trailing window from now (Go duration). e.g. 24h, 2h30m. Mutually exclusive with --start/--end.")
+	f.StringVar(&l.start, "start", "", "Absolute window start (RFC3339, YYYY-MM-DDTHH:MM:SS, or YYYY-MM-DD). Mutually exclusive with --since.")
+	f.StringVar(&l.end, "end", "", "Absolute window end (same formats as --start; defaults to 7 days after --start when omitted).")
 	f.IntVar(&l.limit, "limit", 0, "How many logs to retrieve; 0 means no explicit limit")
 	f.StringVar(&l.search, "search", "", "Search query to filter logs")
 
@@ -81,7 +87,7 @@ func (l *logs) Run(cmd *cobra.Command, args []string) {
 	}
 
 	projectId := l.projectId.GetFlagOrDie(currentDir)
-	start, end := l.resolveTimeRange()
+	start, end := l.resolveTimeRange(cmd)
 
 	resp := LogsAPIResponse{}
 	req := l.newLogsRequest(projectId, &resp).
@@ -94,8 +100,33 @@ func (l *logs) Run(cmd *cobra.Command, args []string) {
 	printLogs(resp.Logs)
 }
 
-func (l *logs) resolveTimeRange() (string, string) {
-	// Determine start and end based on --since duration and now
+func (l *logs) resolveTimeRange(cmd *cobra.Command) (string, string) {
+	format := func(t time.Time) string { return t.Truncate(time.Millisecond).Format(time.RFC3339Nano) }
+
+	hasStart := l.start != ""
+	hasEnd := l.end != ""
+	sinceChanged := cmd.Flags().Changed("since")
+
+	if (hasStart || hasEnd) && sinceChanged {
+		utils.NewExitError().WithMessage("--start/--end and --since are mutually exclusive").Done()
+	}
+
+	if hasStart || hasEnd {
+		if !hasStart {
+			utils.NewExitError().WithMessage("--start is required when --end is provided").Done()
+		}
+		start := parseLogTimestamp("--start", l.start)
+		end := start.Add(maxLogWindow)
+		if hasEnd {
+			end = parseLogTimestamp("--end", l.end)
+		}
+		if !end.After(start) {
+			utils.NewExitError().WithMessage("--end must be after --start").Done()
+		}
+		return format(start), format(end)
+	}
+
+	// --since mode (default 24h)
 	durStr := l.since
 	if durStr == "" {
 		durStr = "24h"
@@ -105,17 +136,26 @@ func (l *logs) resolveTimeRange() (string, string) {
 		utils.NewExitError().WithMessage("invalid --since duration, must be a valid Go duration").WithReason(err).Done()
 	}
 	if dur < 0 {
-		// treat negative durations as zero to avoid future start times
 		dur = 0
 	}
 
 	now := time.Now().UTC()
-	start := now.Add(-dur)
+	return format(now.Add(-dur)), format(now)
+}
 
-	// round to ms to keep URLs tidy
-	format := func(t time.Time) string { return t.Truncate(time.Millisecond).Format(time.RFC3339Nano) }
-
-	return format(start), format(now)
+// parseLogTimestamp parses a user-supplied timestamp flag value. Accepts RFC3339,
+// YYYY-MM-DDTHH:MM:SS, or YYYY-MM-DD. Exits with a clear error on invalid input.
+func parseLogTimestamp(flag, value string) time.Time {
+	layouts := []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02"}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t.UTC()
+		}
+	}
+	utils.NewExitError().WithMessage(
+		fmt.Sprintf("invalid %s %q: use RFC3339 (e.g. 2026-06-24T00:00:00Z) or YYYY-MM-DD", flag, value),
+	).Done()
+	return time.Time{}
 }
 
 // newLogsRequest builds the base HTTP request with common query params

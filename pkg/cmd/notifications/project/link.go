@@ -28,12 +28,38 @@ import (
 	"github.com/versori/cli/pkg/utils"
 )
 
+var validNotificationSeverities = []string{"critical", "high", "medium", "low"}
+
+// notificationFilters mirrors the server-side NotificationFilters struct. All fields are optional;
+// an empty struct (all zero values) matches every issue.
+type notificationFilters struct {
+	Severities       []string `json:"severities,omitempty"`
+	Title            string   `json:"title,omitempty"`
+	TitleMatchCase   bool     `json:"titleMatchCase,omitempty"`
+	Message          string   `json:"message,omitempty"`
+	MessageMatchCase bool     `json:"messageMatchCase,omitempty"`
+}
+
+// createNotificationBody is the request body for creating a project notification link. It is defined
+// locally because the generated CreateProjectNotification type has no Filters field.
+type createNotificationBody struct {
+	ChannelId     ulid.ULID            `json:"channel_id"`
+	EnvironmentId ulid.ULID            `json:"environment_id"`
+	Name          string               `json:"name"`
+	Filters       *notificationFilters `json:"filters,omitempty"`
+}
+
 type link struct {
-	configFactory *config.ConfigFactory
-	projectId     flags.ProjectId
-	channelId     string
-	envName       string
-	name          string
+	configFactory   *config.ConfigFactory
+	projectId       flags.ProjectId
+	channelId       string
+	envName         string
+	name            string
+	severities      []string
+	filterTitle     string
+	filterTitleCase bool
+	filterMessage   string
+	filterMsgCase   bool
 }
 
 func NewLink(c *config.ConfigFactory) *cobra.Command {
@@ -53,16 +79,35 @@ project directory.`,
 		Run: l.Run,
 	}
 
-	l.projectId.SetFlag(cmd.Flags())
-	cmd.Flags().StringVar(&l.channelId, "channel-id", "", "ULID of the notification channel to link (prompts a picker if omitted)")
-	cmd.Flags().StringVar(&l.envName, "environment", "", "Name of the project environment (e.g. production, staging; prompts a picker if omitted)")
-	cmd.Flags().StringVar(&l.name, "name", "", "Display name for this link (defaults to the channel name)")
+	f := cmd.Flags()
+	l.projectId.SetFlag(f)
+	f.StringVar(&l.channelId, "channel-id", "", "ULID of the notification channel to link (prompts a picker if omitted)")
+	f.StringVar(&l.envName, "environment", "", "Name of the project environment (e.g. production, staging; prompts a picker if omitted)")
+	f.StringVar(&l.name, "name", "", "Display name for this link (defaults to the channel name)")
+	f.StringSliceVar(&l.severities, "severity", nil, "Only email for these severities (comma-separated or repeatable): critical, high, medium, low")
+	f.StringVar(&l.filterTitle, "filter-title", "", "Only email when issue title contains this substring")
+	f.BoolVar(&l.filterTitleCase, "filter-title-case", false, "Make --filter-title case-sensitive")
+	f.StringVar(&l.filterMessage, "filter-message", "", "Only email when issue message contains this substring")
+	f.BoolVar(&l.filterMsgCase, "filter-message-case", false, "Make --filter-message case-sensitive")
 
 	return cmd
 }
 
 func (l *link) Run(cmd *cobra.Command, _ []string) {
 	projectId := l.projectId.GetFlagOrDie(".")
+
+	for _, s := range l.severities {
+		found := false
+		for _, valid := range validNotificationSeverities {
+			if s == valid {
+				found = true
+				break
+			}
+		}
+		if !found {
+			utils.NewExitError().WithMessage(fmt.Sprintf("invalid --severity %q (must be one of %v)", s, validNotificationSeverities)).Done()
+		}
+	}
 
 	channelName := l.resolveChannel()
 	envId, envName := l.resolveEnvironment(projectId)
@@ -81,10 +126,11 @@ func (l *link) Run(cmd *cobra.Command, _ []string) {
 		utils.NewExitError().WithMessage("failed to parse resolved environment ID").WithReason(err).Done()
 	}
 
-	payload := v1.CreateProjectNotificationJSONRequestBody{
+	payload := createNotificationBody{
 		ChannelId:     channelULID,
 		EnvironmentId: envULID,
 		Name:          l.name,
+		Filters:       l.buildFilters(),
 	}
 
 	resp := v1.ProjectNotification{}
@@ -101,6 +147,26 @@ func (l *link) Run(cmd *cobra.Command, _ []string) {
 
 	fmt.Printf("Linked channel %q to environment %q on project %s (notification id: %s, name: %q).\n",
 		channelName, envName, projectId, resp.Id.String(), resp.Name)
+}
+
+// buildFilters constructs a notificationFilters from the filter flags. Returns nil when no filter
+// flags are set so the API receives no filters field (matches all issues).
+func (l *link) buildFilters() *notificationFilters {
+	empty := len(l.severities) == 0 &&
+		l.filterTitle == "" && !l.filterTitleCase &&
+		l.filterMessage == "" && !l.filterMsgCase
+
+	if empty {
+		return nil
+	}
+
+	return &notificationFilters{
+		Severities:       l.severities,
+		Title:            l.filterTitle,
+		TitleMatchCase:   l.filterTitleCase,
+		Message:          l.filterMessage,
+		MessageMatchCase: l.filterMsgCase,
+	}
 }
 
 // resolveChannel returns the channel name (for the success message) and ensures l.channelId is set.

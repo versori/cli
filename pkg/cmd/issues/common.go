@@ -16,26 +16,24 @@ package issues
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
+	"github.com/versori/cli/pkg/cmd/config"
 	"github.com/versori/cli/pkg/utils"
 )
 
 // Enum value sets accepted by the issue filter/update flags, mirrored from the API's
-// IssueStatusEnum / IssueSeverityEnum / IssueResolutionStatusEnum so an invalid value fails fast
-// with a helpful message instead of a raw server rejection.
+// IssueStatusEnum / IssueSeverityEnum so an invalid value fails fast with a helpful message instead
+// of a raw server rejection.
 var (
-	validStatuses           = []string{"open", "closed", "acked", "resolved"}
-	validSeverities         = []string{"critical", "high", "low", "medium"}
-	validResolutionStatuses = []string{"resolved", "negated", "ignored"}
+	validStatuses   = []string{"open", "closed", "acked", "resolved"}
+	validSeverities = []string{"critical", "high", "low", "medium"}
 )
 
 func validateStatus(v string) error   { return validateEnum("status", v, validStatuses) }
 func validateSeverity(v string) error { return validateEnum("severity", v, validSeverities) }
-func validateResolutionStatus(v string) error {
-	return validateEnum("resolution-status", v, validResolutionStatuses)
-}
 
 func validateEnum(flag, value string, allowed []string) error {
 	if value == "" {
@@ -88,6 +86,40 @@ type printableIssueDetail struct {
 func init() {
 	utils.RegisterResource(printableIssue{}, []string{"Title", "Severity", "Status", "SeenCount", "LastSeenAt", "Id"})
 	utils.RegisterResource(printableIssueDetail{}, []string{"Id", "Title", "Severity", "Status", "Reason", "ProjectId", "EnvironmentId", "SeenCount", "LastSeenAt", "Message"})
+}
+
+// resolveEnvironmentId maps an environment name to its ID for the given project.
+// Rules:
+//   - envName provided: look up by name; exit if not found.
+//   - envName empty + 1 environment: auto-select it silently.
+//   - envName empty + multiple environments: return "" (no env filter applied).
+func resolveEnvironmentId(cf *config.ConfigFactory, projectId, envName string) string {
+	project := v1.Project{}
+	err := cf.NewRequest().
+		WithMethod(http.MethodGet).
+		Into(&project).
+		WithPath("o/:organisation/projects/" + projectId).
+		Do()
+	if err != nil {
+		utils.NewExitError().WithMessage("failed to fetch project environments").WithReason(err).Done()
+	}
+
+	envs := project.Environments
+
+	if envName != "" {
+		for _, e := range envs {
+			if e.Name == envName {
+				return e.ID.String()
+			}
+		}
+		utils.NewExitError().WithMessage(fmt.Sprintf("environment %q not found on project %s", envName, projectId)).Done()
+	}
+
+	if len(envs) == 1 {
+		return envs[0].ID.String()
+	}
+
+	return ""
 }
 
 func toPrintableIssue(i v1.Issue) printableIssue {

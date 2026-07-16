@@ -8,8 +8,8 @@
 - **End-users & activations**: `users create/list`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
 - **Dynamic-variable schema**: `projects variables list/add/update/remove/get/set`
 - **Assets**: `projects assets list/upload/download`
-- **Observability & alerts**: `projects logs`, `issues list/get/update`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
-- **Issues & resources**: `issues list/get` (read), `issues update` (mutation), `projects edit` (resource limits / replicas — mutation), reading current resources via `projects details -o json`
+- **Observability & alerts**: `projects logs`, `projects issues list/get/update`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
+- **Issues & resources**: `projects issues list/get` (read), `projects issues update` (mutation), `projects edit` (resource limits / replicas — mutation), reading current resources via `projects details -o json`
 - **KV store**: `kv stores list`, `kv list/count/get` (read), `kv set/delete/wipe` (mutation)
 - **Reference material**: `.gitignore`, environment variables, deployment safety, the `.versori` file, workflow recipes, example interactions
 
@@ -456,7 +456,7 @@ Deploy a project and upload the project asset files as well.
 
 Add `--dry-run` to show what would happen without executing.
 
-### `versori projects logs --environment <env> [--project <id>] [--since <duration>] [--limit <n>] [--search <query>]`
+### `versori projects logs --environment <env> [--project <id>] [--since <duration>] [--start <ts>] [--end <ts>] [--limit <n>] [--search <query>]`
 
 Fetch workflow execution logs for one project + environment. Output is **always one JSON object per line** on stdout, ordered ascending by time — the global `-o` flag is ignored.
 
@@ -467,9 +467,16 @@ Fetch workflow execution logs for one project + environment. Output is **always 
 **Optional:**
 
 - `--project <id>` — defaults from `.versori` when inside a synced project directory.
-- `--since <duration>` — Go duration window from now (default `24h`). Examples: `30s`, `15m`, `2h30m`.
+- `--since <duration>` — trailing window from now (default `24h`). Examples: `30s`, `15m`, `2h30m`. Mutually exclusive with `--start`/`--end`. Note: the API does not return logs older than ~7 days regardless of this value.
+- `--start <timestamp>` — absolute window start. Accepts RFC3339 (`2026-06-24T00:00:00Z`), `YYYY-MM-DDTHH:MM:SS`, or `YYYY-MM-DD`. Mutually exclusive with `--since`.
+- `--end <timestamp>` — absolute window end (same formats; defaults to **7 days after `--start`** when omitted). Requires `--start`.
 - `--limit <n>` — page size (max entries to return). Must be **1–1000**. `0` (the default) omits the page-size parameter entirely, so the server applies its own default page. **Do not pass a value above 1000.**
 - `--search <query>` — server-side filter; useful for narrowing to one execution by ID, a task name, or an error substring.
+
+**Time window rules:**
+- `--since` and `--start`/`--end` are mutually exclusive — passing both exits with an error.
+- `--end` must be after `--start`; omitting `--end` defaults to 7 days after `--start`.
+- The window (start→end) must be at most 7 days wide; the API rejects wider ranges with `time range must be less than 7 days`.
 
 **`--limit` must be between 1 and 1000 — values above 1000 are rejected, not silently capped.** Passing `--limit 1001` (or `5000`) fails the whole call with:
 
@@ -638,7 +645,9 @@ versori kv wipe --scope execution --project 01KH6HD... --environment production 
 
 ## Issues & resource limits
 
-Issues are the org-scoped alert feed: raised by explicit `ctx.createIssue()` in workflow code, **auto-submitted when a task error reaches a workflow-level `.catch()`** (production runtime), or by the **platform** (OOM / deploy failure). All issues are inspectable in the UI and via `versori issues list/get`. Read commands are safe; `issues update` is a mutation.
+Issues are the alert feed: raised by explicit `ctx.createIssue()` in workflow code, **auto-submitted when a task error reaches a workflow-level `.catch()`** (production runtime), or by the **platform** (OOM / deploy failure). All issues are inspectable in the UI and via the CLI. Read commands (`list`, `get`) are safe; `update` is a mutation.
+
+**Use the project-scoped `versori projects issues …` commands** (below): they require a project (from `--project` or `.versori`) and resolve `--environment` by name. An org-level `versori issues …` also exists as a platform-wide view across all projects, but isn't needed for skill work.
 
 **Severity levels:** `critical`, `high`, `medium`, `low`. The platform auto-raises **`critical`** for OOM and deploy-failure lifecycle events. Workflow code may also use **`critical`** when a static-connection failure means the integration cannot work at all for every user (e.g. 404, 401/403); use **`high`** for serious but possibly transient failures (e.g. 5xx). Full guidance: `references/sdk-guide.md` (**Escalating to a human**).
 
@@ -648,54 +657,68 @@ The platform creates these automatically — do not duplicate these titles from 
 
 | Title | Severity | Typical cause | Diagnosis |
 |---|---|---|---|
-| `OOM Killed` | `critical` | Memory limit exceeded; container restarted | 1. `issues get <id>` for env/project context. 2. Pull logs before the kill — look for large buffers, unbounded arrays, missing pagination. 3. Read limits: `projects details <id> -o json \| jq '.environments[] \| select(.name=="production") \| .config.deploymentSpec.resources'`. 4. Mitigate: stream/batch in code **or** raise limits with `projects edit` (mutation — approval required). |
-| `Environment failed to deploy` | `critical` | Deploy/build/config step failed; environment not live | 1. `issues get <id>`. 2. Re-run local validation: `deno install && deno check src/index.ts`. 3. Check missing static connections (`projects systems list`), dynamic-variable schema mismatches, and the deploy command output. 4. Fix and redeploy. |
+| `OOM Killed` | `critical` | Memory limit exceeded; container restarted | 1. `projects issues get <id>` for env/project context. 2. Pull logs before the kill — look for large buffers, unbounded arrays, missing pagination. 3. Read limits: `projects details <id> -o json \| jq '.environments[] \| select(.name=="production") \| .config.deploymentSpec.resources'`. 4. Mitigate: stream/batch in code **or** raise limits with `projects edit` (mutation — approval required). |
+| `Environment failed to deploy` | `critical` | Deploy/build/config step failed; environment not live | 1. `projects issues get <id>`. 2. Re-run local validation: `deno install && deno check src/index.ts`. 3. Check missing static connections (`projects systems list`), dynamic-variable schema mismatches, and the deploy command output. 4. Fix and redeploy. |
 
 **When to list issues first:** deploy just failed; environment shows as not deployed; executions restart silently; user reports "nothing is running"; or logs are empty/unhelpful after an incident.
 
 ```bash
 # all open critical issues for a project
-versori issues list --status open --project 01KH6HD... -o json \
-  | jq '.items[] | select(.severity == "critical")'
+versori projects issues list --status open --project 01KH6HD... -o json \
+  | jq '.[] | select(.severity == "critical")'
 
 # platform OOM / deploy failures specifically
-versori issues list --status open --project 01KH6HD... -o json \
-  | jq '.items[] | select(.title == "OOM Killed" or .title == "Environment failed to deploy")'
+versori projects issues list --status open --project 01KH6HD... -o json \
+  | jq '.[] | select(.title == "OOM Killed" or .title == "Environment failed to deploy")'
 ```
 
-### `versori issues list [--status <s>] [--severity <s>] [--project <id>] [--environment <id>] [--first <n>] [--after <cursor>]`
+### `versori projects issues list [--status <s>] [--severity <s>] --project <id> [--environment <name>] [--first <n>] [--after <cursor>] [--before <cursor>]`
 
-List issues for the current organisation. All filters optional. `--status` is one of `open`,
-`acked`, `closed`, `resolved`; `--severity` is `critical`, `low`, `medium`, `high`. `--project` defaults from
-`.versori` inside a synced project directory (omit both `--project` and `.versori` to list every
-project in the org). Newest first; page with `--after <last-issue-id>`.
+List issues for a project. `--project` is **required** — exits with an error if neither `--project`
+nor a `.versori` file in the current directory provides a project ID. `--status` is one of `open`,
+`acked`, `closed`, `resolved`; `--severity` is `critical`, `high`, `medium`, `low`. **The server
+defaults to `status=open` when no `--status` is passed.** Newest first; page forward with
+`--after <last-issue-id>` or backward with `--before`.
+
+`--environment <name>` behaviour:
+- Provided: filters issues to that environment (resolved by name → ID).
+- Omitted + project has **1 environment**: auto-selected silently.
+- Omitted + project has **multiple environments**: no environment filter (all issues for the project).
 
 ```bash
-versori issues list --status open                       # all open issues in the org
-versori issues list --project 01KH6HD... --severity critical # critical issues for one project
-versori issues list --status open -o json | jq '.items[] | select(.title=="OOM Killed")'
+versori projects issues list --project 01KH6HD...                                    # open issues, env auto-selected if only one
+versori projects issues list --project 01KH6HD... -o json | jq '.[] | select(.title=="OOM Killed")'
 ```
 
-### `versori issues get <issue-id> [--project <id>]`
+### `versori projects issues get <issue-id> --project <id> [--environment <name>]`
 
 Full detail for a single issue — message, labels, annotations, reason, project/environment IDs.
-There is **no server-side get-by-id**, so this walks the org's issue list newest-first and matches
-client-side; pass `--project` to scope the walk and reach older issues faster. Read-only.
+`--project` is **required** (reads from `.versori` if present). `--environment` follows the same
+auto-resolve rules as `projects issues list`. There is **no server-side get-by-id**, so this walks
+the project's issue list newest-first and matches client-side. Read-only.
 
-### `versori issues update <issue-id> (--status <s> | --resolution-status <s> | --severity <s>)`
+### `versori projects issues update <issue-id> --project <id> (--status <s> | --severity <s>)`
 
-**Mutation.** Change an issue's status (`open`/`acked`/`closed`/`resolved`), resolution status
-(`resolved`/`negated`/`ignored`), or severity (`critical`/`low`/`medium`/`high`). Only the flags you pass change; requires at least
-one. **Agent: only run when the user explicitly asks to ack/resolve/change an issue.**
+**Mutation.** Change an issue's status or severity. `--project` is required (it selects the owning
+org context before the update). Only the flags you pass are sent — this mirrors the platform, which
+PATCHes just `{"status": "..."}`. Requires at least one flag.
+**Agent: only run when the user explicitly asks to ack/resolve/change an issue.**
+
+**Status values:**
+- `open` — active/unhandled (the default when an issue is raised).
+- `acked` — acknowledged, still being worked.
+- `resolved` — root cause fixed.
+- `closed` — dismissed without a fix.
+
+`open` and `acked` keep **deduplicating** — a repeat of the same error increments the existing issue. `resolved` and `closed` are terminal and stop deduplication, so the next occurrence opens a *new* issue.
 
 ```bash
-versori issues update 01KS2T... --status acked
-versori issues update 01KS2T... --status resolved --resolution-status resolved
+versori projects issues update 01KS2T... --project 01KH6HD... --status resolved
 ```
 
 ### Notification channels (email alerts)
 
-Issues are inspectable in the UI and via `versori issues list/get`, but **email alerts require a linked notification channel**. The pipeline has three pieces: an org-scoped **channel** (the email inbox), a project-scoped **link** (routes an environment's issues to that channel), and the **issue** itself (`ctx.createIssue()`, auto-submit from `.catch()`, or platform events). Without a link, `ctx.createIssue()` succeeds but no email is sent — the platform logs `no notifications configured` and drops the alert.
+Issues are an inspectable log on their own. To also get them **emailed**, link a notification **channel** (an email inbox) to an environment; the link can carry optional **filters** so only some issues email.
 
 ### `versori notifications channels list`
 
@@ -723,20 +746,33 @@ List notification-channel bindings on a project. Optionally filter by environmen
 
 ### `versori notifications project link --channel-id <id> --environment <name> [--name <label>] [--project <project-id>]`
 
-Link an existing channel to a project + environment. After linking, issues raised in that environment by workflow code (`ctx.createIssue()` or `.catch()` blocks) trigger an email through the linked channel.
+Link a channel to a project + environment so that environment's new issues are emailed (subject to any filters below).
 
-If `--channel-id` is omitted, the CLI fetches the org's channels and shows an interactive picker (label format: `<channel-name>  (<to-address>)`). If `--environment` is omitted and the project has more than one environment, the CLI shows an environment picker (single-env projects auto-select). `--name` defaults to the channel's name.
+If `--channel-id` is omitted, the CLI presents an interactive picker of available channels. If
+`--environment` is omitted and the project has more than one environment, the CLI shows an environment
+picker (single-env projects auto-select). `--name` defaults to the channel's name.
 
-**Agent: always pass `--channel-id` and `--environment` explicitly.** Source `--channel-id` from `versori notifications channels list -o json`; `--environment` is the human-readable env name (e.g. `production`).
+**Agent: always pass `--channel-id` and `--environment` explicitly.** Source `--channel-id` from
+`versori notifications channels list -o json`; `--environment` is the human-readable env name
+(e.g. `production`).
+
+**Filter flags** (all optional — omit all to match every issue):
+
+| Flag | Type | Description |
+|---|---|---|
+| `--severity critical,high` | string slice | Only email for these severities (OR within list). Values: `critical`, `high`, `medium`, `low`. |
+| `--filter-title <substr>` | string | Only email when issue title contains this substring (case-insensitive by default). |
+| `--filter-title-case` | bool | Make `--filter-title` case-sensitive. |
+| `--filter-message <substr>` | string | Only email when issue message contains this substring. |
+| `--filter-message-case` | bool | Make `--filter-message` case-sensitive. |
+
+All filter conditions are AND; any omitted filter matches everything. There is **no UPDATE endpoint**
+for a notification link — to change filters, unlink and recreate.
 
 ```bash
-versori notifications channels list
-# → 01KS2TWXJYM...  ops-alerts  george@versori.com
-versori notifications project link \
-  --channel-id 01KS2TWXJYM... \
-  --environment production \
-  --name "ops-alerts (production)"
-# → Linked channel "ops-alerts" to environment "production" on project 01KRR... .
+# only critical/high issues whose title contains "OOM"
+versori notifications project link --channel-id 01KS2T... --environment production \
+  --severity critical,high --filter-title "OOM"
 ```
 
 ### `versori notifications project unlink --notification-id <id> --environment <name> [--project <project-id>] [--yes]`
