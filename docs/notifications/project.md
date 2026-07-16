@@ -37,9 +37,15 @@ versori notifications project link --channel-id <id> --environment <name> [--nam
 
 * `--environment`: Name of the project environment (e.g. production, staging; prompts a picker if omitted)
 
+* `--filter-message`: Only email when issue message contains this substring
+* `--filter-message-case`: Make --filter-message case-sensitive
+* `--filter-title`: Only email when issue title contains this substring
+* `--filter-title-case`: Make --filter-title case-sensitive
 * `-h`, `--help`: help for link
 * `--name`: Display name for this link (defaults to the channel name)
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
+* `--severity`: Only email for these severities (comma-separated or repeatable): critical, high, medium, low
 
 
 

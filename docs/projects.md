@@ -18,6 +18,7 @@ The `projects` command (alias: `project`) provides subcommands for the full proj
 | `edit` | Edit project environment configuration (resource limits and requests) |
 | `environments` | Manage project environments |
 | `files` | List or read files from a project |
+| `issues` | List, inspect, and update issues for a project |
 | `list` | Lists all projects in the current context |
 | `logs` | Check the project logs |
 | `proxy` | Send an HTTP request to a project's deployed environment |
@@ -182,6 +183,15 @@ versori projects files [filename] [flags]
 
 ---
 
+### `versori projects issues`
+
+
+
+See the [issues reference](/docs/projects/issues.md) for detailed subcommands to list, inspect, and update issues for a project.
+
+
+---
+
 ### `versori projects list`
 
 
@@ -211,6 +221,8 @@ versori projects logs  [flags]
 
 
 **Flags:**
+* `--end`: Absolute window end (same formats as --start; defaults to 7 days after --start when omitted).
+
 * `--environment`: The environment to retrieve logs for. e.g. (production, staging)
 
 * `-h`, `--help`: help for logs
@@ -218,7 +230,10 @@ versori projects logs  [flags]
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
 * `--search`: Search query to filter logs
-* `--since`: Go duration since now, e.g. 24h, 2h30m (default: 24h)
+* `--since`: Trailing window from now (Go duration). e.g. 24h, 2h30m. Mutually exclusive with --start/--end.
+
+* `--start`: Absolute window start (RFC3339, YYYY-MM-DDTHH:MM:SS, or YYYY-MM-DD). Mutually exclusive with --since.
+
 
 
 

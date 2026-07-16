@@ -1,34 +1,33 @@
 ---
-title: "issues"
-description: "List, inspect, and update issues"
+title: "projects issues"
+description: "List, inspect, and update issues for a project"
 ---
 
-Inspect and manage issues raised in the organisation.
 
-Read commands (list, get) are safe to run for diagnosis. The update command changes live issue
-state (e.g. acknowledging or resolving) and should only be run when explicitly requested.
 
 ## Subcommands
 
 | Subcommand | Description |
 |---|---|
 | `get` | Get full detail for a single issue |
-| `list` | List issues for the current organisation |
+| `list` | List issues for a project |
 | `update` | Update an issue's status or severity |
 
 ---
 
-### `versori issues get`
+### `versori projects issues get`
 
 
 
 
 ```sh
-versori issues get <issue-id> [flags]
+versori projects issues get <issue-id> [flags]
 ```
 
 
 **Flags:**
+* `--environment`: Environment name to filter by (auto-selected when the project has exactly one environment)
+
 * `-h`, `--help`: help for get
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
@@ -37,18 +36,18 @@ versori issues get <issue-id> [flags]
 
 ---
 
-### `versori issues list`
+### `versori projects issues list`
 
 
-List issues raised across the organisation (via ctx.createIssue(), unhandled workflow errors, or
+List issues raised for a single project (via ctx.createIssue(), unhandled workflow errors, or
 platform events such as an out-of-memory kill).
 
-Filters (all optional) narrow server-side by status, project, environment, and severity. Inside a
-synced project directory the project filter defaults from .versori. An OOM-killed project surfaces
-here as an issue titled "OOM Killed" — inspect it with 'issues get \<id\>'.
+--project is required; it defaults from .versori inside a synced project directory. --environment is
+an environment name resolved against the project, and is auto-selected when the project has exactly
+one environment.
 
 ```sh
-versori issues list [flags]
+versori projects issues list [flags]
 ```
 
 
@@ -56,7 +55,8 @@ versori issues list [flags]
 * `--after`: Pagination cursor: pass a prior response's last issue ID to fetch the next page
 
 * `--before`: Pagination cursor for the previous page
-* `--environment`: Filter by environment ID
+* `--environment`: Environment name to filter by (auto-selected when the project has exactly one environment)
+
 * `--first`: Max issues to return (0 lets the server default apply)
 * `-h`, `--help`: help for list
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
@@ -68,7 +68,7 @@ versori issues list [flags]
 
 ---
 
-### `versori issues update`
+### `versori projects issues update`
 
 
 Update the editable fields of an issue. Common uses:
@@ -80,12 +80,14 @@ Mirrors the platform: only the fields you pass are sent. This is a mutation — 
 explicitly asked.
 
 ```sh
-versori issues update <issue-id> [flags]
+versori projects issues update <issue-id> [flags]
 ```
 
 
 **Flags:**
 * `-h`, `--help`: help for update
+* `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
 * `--severity`: New severity (critical, high, low, medium)
 * `--status`: New status (open, closed, acked, resolved)
 
