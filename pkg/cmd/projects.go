@@ -51,6 +51,7 @@ func newProjectsCommand(c *config.ConfigFactory) *cobra.Command {
 	versions := projects.NewVersionsCommand(c)
 	environments := projects.NewEnvironmentsCommand(c)
 	assetsCmd := projects.NewAssetsCommand(c)
+	issuesCmd := projects.NewIssuesCommand(c)
 
 	cmd.AddCommand(list)
 	cmd.AddCommand(sync)
@@ -71,6 +72,7 @@ func newProjectsCommand(c *config.ConfigFactory) *cobra.Command {
 	cmd.AddCommand(versions)
 	cmd.AddCommand(environments)
 	cmd.AddCommand(assetsCmd)
+	cmd.AddCommand(issuesCmd)
 
 	return cmd
 }

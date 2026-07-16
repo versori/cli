@@ -84,7 +84,7 @@ main().then().catch((err) => console.error('Failed to run main()', err));
   "type": "module",
   "module": "dist/index.js",
   "dependencies": {
-    "@versori/run": "^0.6.3"
+    "@versori/run": "^0.8.0"
   }
 }
 ```
@@ -421,9 +421,9 @@ For unknown systems, research APIs and create a research document before generat
 
 Read `references/sdk-guide.md` (the **Logging** and **Creating Issues** sections) before writing observability code. The default bar is high: a human or agent should be able to diagnose a failure **from the logs alone, without asking the workflow to be re-run with extra logging added.** Build this in from the start — do not ship a workflow that logs only "failed" and then wait for a follow-up prompt to add detail.
 
-**Debugging:** when deploy fails, the environment is down, executions restart silently, or logs are unhelpful, run **`versori issues list` before reading source** — especially open **`critical`** issues (`OOM Killed`, `Environment failed to deploy`). Diagnosis flows and CLI examples: `references/cli-usage.md` (**Issues & resource limits** → *Platform critical issues*). If no platform issue explains it, follow **Diagnosing a workflow failure from logs** there; cross-check issues again if logs are empty or only `info`.
+**Debugging:** when deploy fails, the environment is down, executions restart silently, or logs are unhelpful, run **`versori projects issues list` before reading source** — especially open **`critical`** issues (`OOM Killed`, `Environment failed to deploy`). Diagnosis flows and CLI examples: `references/cli-usage.md` (**Issues & resource limits** → *Platform critical issues*). If no platform issue explains it, follow **Diagnosing a workflow failure from logs** there; cross-check issues again if logs are empty or only `info`.
 
-**Writing issues:** issues come from `ctx.createIssue()`, **auto-submit** when a thrown error reaches a workflow-level `.catch()` (`high`/`low`), or platform lifecycle events. `ctx.log.error` does not create an issue — use `createIssue` only for **static-connection infrastructure failures** a human can fix; handle data-level and dynamic-connection errors in-task and **do not throw** to `.catch()`. Severity rules (`critical` vs `high`, etc.): `references/sdk-guide.md` (**Escalating to a human**). Issues are always inspectable in the UI and via `versori issues list/get`.
+**Writing issues:** issues come from `ctx.createIssue()`, **auto-submit** when a thrown error reaches a workflow-level `.catch()` (`high`/`low`), or platform lifecycle events. `ctx.log.error` does not create an issue — use `createIssue` only for **static-connection infrastructure failures** a human can fix; handle data-level and dynamic-connection errors in-task and **do not throw** to `.catch()`. Severity rules (`critical` vs `high`, etc.): `references/sdk-guide.md` (**Escalating to a human**). Issues are always inspectable in the UI and via `versori projects issues list/get`.
 
 **Email alerts:** an issue with no linked notification channel is silently dropped for email — `ctx.createIssue()` succeeds but no alert is sent. When workflows can raise issues that should page someone, ensure an email **channel** exists and is **linked** to the environment (`versori notifications channels create`, `versori notifications project link`). Ask the user for the recipient email (`--email` is required). Full CLI steps: `references/cli-usage.md` (**Notification channels (email alerts)**).
 

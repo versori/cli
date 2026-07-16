@@ -21,39 +21,49 @@ import (
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
 type update struct {
-	configFactory    *config.ConfigFactory
-	status           string
-	resolutionStatus string
-	severity         string
+	configFactory *config.ConfigFactory
+	projectId     flags.ProjectId
+	projectScoped bool
+	status        string
+	severity      string
 }
 
-// NewUpdate builds `issues update <issue-id>` — change an issue's status (ack/resolve), resolution
-// status, or severity. This is a mutation: it changes live issue state and should only be run when
-// explicitly requested.
-func NewUpdate(c *config.ConfigFactory) *cobra.Command {
-	u := &update{configFactory: c}
+// NewUpdate builds the org-level `issues update <issue-id>` — change an issue's status (ack/resolve)
+// or severity by its (globally unique) ID. This is a mutation: run it only when explicitly asked.
+func NewUpdate(c *config.ConfigFactory) *cobra.Command { return newUpdate(c, false) }
+
+// NewProjectUpdate builds the project-scoped `projects issues update <issue-id>`. Same mutation,
+// but --project is required (defaults from .versori) so the correct org context is selected before
+// the update is applied.
+func NewProjectUpdate(c *config.ConfigFactory) *cobra.Command { return newUpdate(c, true) }
+
+func newUpdate(c *config.ConfigFactory, projectScoped bool) *cobra.Command {
+	u := &update{configFactory: c, projectScoped: projectScoped}
 
 	cmd := &cobra.Command{
 		Use:   "update <issue-id>",
-		Short: "Update an issue's status, resolution, or severity",
+		Short: "Update an issue's status or severity",
 		Long: `Update the editable fields of an issue. Common uses:
 
-  issues update <id> --status acked                          # acknowledge
-  issues update <id> --status resolved --resolution-status resolved
+  update <id> --status acked      # acknowledge
+  update <id> --status resolved   # mark resolved (server records resolved_at)
 
-Only the flags you pass are changed; everything else is left as-is. This is a mutation — run it only
-when explicitly asked.`,
+Mirrors the platform: only the fields you pass are sent. This is a mutation — run it only when
+explicitly asked.`,
 		Args: cobra.ExactArgs(1),
 		Run:  u.Run,
 	}
 
 	f := cmd.Flags()
+	if projectScoped {
+		u.projectId.SetFlag(f)
+	}
 	f.StringVar(&u.status, "status", "", "New status (open, closed, acked, resolved)")
-	f.StringVar(&u.resolutionStatus, "resolution-status", "", "Resolution status (resolved, negated, ignored)")
 	f.StringVar(&u.severity, "severity", "", "New severity (critical, high, low, medium)")
 
 	return cmd
@@ -62,13 +72,15 @@ when explicitly asked.`,
 func (u *update) Run(_ *cobra.Command, args []string) {
 	issueID := args[0]
 
-	if u.status == "" && u.resolutionStatus == "" && u.severity == "" {
-		utils.NewExitError().WithMessage("nothing to update: pass at least one of --status, --resolution-status, --severity").Done()
+	if u.projectScoped {
+		// Resolves --project (or .versori) and switches to the owning org context before the PATCH.
+		_ = u.projectId.GetFlagOrDie(".")
+	}
+
+	if u.status == "" && u.severity == "" {
+		utils.NewExitError().WithMessage("nothing to update: pass at least one of --status, --severity").Done()
 	}
 	if err := validateStatus(u.status); err != nil {
-		utils.NewExitError().WithReason(err).Done()
-	}
-	if err := validateResolutionStatus(u.resolutionStatus); err != nil {
 		utils.NewExitError().WithReason(err).Done()
 	}
 	if err := validateSeverity(u.severity); err != nil {
@@ -79,10 +91,6 @@ func (u *update) Run(_ *cobra.Command, args []string) {
 	if u.status != "" {
 		s := v1.IssueStatusEnum(u.status)
 		body.Status = &s
-	}
-	if u.resolutionStatus != "" {
-		rs := v1.IssueResolutionStatusEnum(u.resolutionStatus)
-		body.ResolutionStatus = &rs
 	}
 	if u.severity != "" {
 		sev := v1.IssueSeverityEnum(u.severity)

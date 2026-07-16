@@ -29,6 +29,7 @@ Reference for generating integration workflows with the Versori Run SDK. Covers 
   - [Activation](#activation)
   - [AsyncWorkflow](#asyncworkflow)
 - [Key-Value Storage](#key-value-storage)
+  - [Batch writes](#batch-writes)
 - [Common Patterns](#common-patterns)
   - [Data Transformation Pipeline](#data-transformation-pipeline)
   - [Error Handling with Issue Reporting](#error-handling-with-issue-reporting)
@@ -287,7 +288,7 @@ Do not log raw credentials, access tokens, refresh tokens, API keys, or full req
 
 #### Escalating to a human
 
-`ctx.log.error(...)` writes to logs — it does **not** create an issue. When a human needs to act (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and via `versori issues list/get`, and can trigger email alerts via a configured **notification channel**.
+`ctx.log.error(...)` writes to logs — it does **not** create an issue. When a human needs to act (failed payments, broken integrations, blocked customer flows), call `ctx.createIssue({...})` in addition to (or instead of) `log.error`. Issues surface in the Versori UI and via `versori projects issues list/get`, and can trigger email alerts via a configured **notification channel**.
 
 **Escalate only failures a human can actually act on — distinguish infrastructure from data.** Choose severity to match impact; do not default everything to `high`.
 
@@ -350,13 +351,13 @@ See [Creating Issues](#creating-issues) for the full `ctx.createIssue()` API.
 
 ### Creating Issues
 
-Issues are surfaced in the Versori platform for inspection (UI and `versori issues list/get`) and can trigger email alerts when a notification channel is linked to the environment.
+Issues are inspectable via `versori projects issues list/get`, and are emailed when a notification channel is linked to the environment.
 
 When a task throws and the workflow has a **workflow-level** `.catch()`, the runtime ( **`DurableInterpreter`** — production) auto-submits an issue via `submitIssue()` **before** your catch handler runs: severity **`high`** for `Error` throws, **`low`** otherwise. The issue carries error/stack annotations; it is not the same as a hand-authored `ctx.createIssue()` with a custom title and message.
 
 **Manual issues:** call `ctx.createIssue()` from any task when you want a specific title, message, and severity. Pick the lowest severity that matches impact — see [Escalating to a human](#escalating-to-a-human) (`critical` for total static-connection outages like 404/401; `high` for serious but possibly transient failures like 5xx).
 
-**Platform issues:** the platform auto-raises **`critical`** for `OOM Killed` and `Environment failed to deploy` — inspect with `versori issues list/get` (see `references/cli-usage.md`, **Platform critical issues**). Do not duplicate those specific platform titles from workflow code.
+**Platform issues:** the platform auto-raises **`critical`** for `OOM Killed` and `Environment failed to deploy` — inspect with `versori projects issues list/get` (see `references/cli-usage.md`, **Platform critical issues**). Do not duplicate those specific platform titles from workflow code.
 
 **Important:** auto-submit on `.catch()` fires for **every** error that reaches the workflow catch — including data-level failures. For per-record validation errors or dynamic-connection problems, handle them **inside the task** (`try/catch` + `log.error`) and **do not throw** to the workflow `.catch()` unless you want an ops issue.
 
@@ -681,6 +682,38 @@ const count = await kv.count(['users']);
 - `{ defaultValue: value }` — return a default value instead of `undefined` when the key is missing
 - `{ throwOnNotFound: true }` — throw a `KVNotFoundError` when the key is missing
 
+### Batch writes
+
+Writing many keys with individual `set()` calls costs one round-trip each. Two methods write a whole set in a single request. Both take the same entry shape, and values are JSON-serialised exactly like `set()` so batched writes round-trip through `get()` identically:
+
+```typescript
+type SetManyEntry = { key: string | string[]; value: unknown; options?: SetOptions };
+```
+
+| Method | Semantics | On failure | Returns |
+|--------|-----------|------------|---------|
+| `setMany(entries)` | Upsert — overwrites existing keys | Partial success: commits what it can | `KVBatchResult` |
+| `insertMany(entries)` | Atomic insert — never overwrites | All-or-nothing: writes nothing, throws | `Promise<void>` |
+
+Reach for `setMany` on idempotent re-syncs where overwriting is fine and you'd rather tolerate individual failures than abort the whole batch. It never throws per-entry — inspect the result instead of assuming success:
+
+```typescript
+const kv = ctx.openKv(':workspace:');
+const { successes, failures } = await kv.setMany(orders.map((o) => ({ key: ['orders', o.id], value: o })));
+if (failures.length) {
+    ctx.log.error('some KV writes failed', { failed: failures.length, sample: failures.slice(0, 5) });
+}
+// KVBatchResult: { successes: KVCommitResult[]; failures: { key: string[]; error: string }[] }
+```
+
+Reach for `insertMany` to seed brand-new keys where a collision is a genuine error. It commits the whole batch in one transaction or writes nothing, throwing on a duplicate key inside the payload (HTTP 400) or a key that already exists in the store (HTTP 409):
+
+```typescript
+await kv.insertMany(newOrders.map((o) => ({ key: ['orders', o.id], value: o })));
+```
+
+There is no batch delete — remove keys with `delete()` per key, or clear a whole sub-tree with `ctx.destroy(scope)`.
+
 ---
 
 ## Common Patterns
@@ -901,6 +934,7 @@ webhook('id', {
 | Log error | `ctx.log.error('msg', { error })` |
 | Get input data | `ctx.data` |
 | Store data | `ctx.openKv(':project:').set(key, value)` |
+| Batch write | `ctx.openKv(':workspace:').setMany(entries)` / `.insertMany(entries)` |
 | Get stored data | `ctx.openKv(':project:').get(key)` |
 | Create issue | `ctx.createIssue({ severity, title, message, annotations })` |
 | Start workflow | `ctx.start('workflow-id', { data, maxAttempts })` |
@@ -927,10 +961,15 @@ type ContextFunc<In, Out> = (ctx: Context<In>, idx?: number) => Out | Promise<Ou
 interface KeyValue {
   get<T>(key: string | string[], options?: GetOptions<T>): Promise<T | undefined>;
   set<T>(key: string | string[], value: T): Promise<void>;
+  setMany(entries: SetManyEntry[]): Promise<KVBatchResult>;  // batch upsert, partial success
+  insertMany(entries: SetManyEntry[]): Promise<void>;         // atomic insert-only, all-or-nothing
   delete(key: string | string[]): Promise<void>;
   list(prefix: string[], options?: ListKVRequest): Promise<ListKVResponse>;
   count(prefix: string[]): Promise<CountKVResponse>;
 }
+
+type SetManyEntry = { key: string | string[]; value: unknown; options?: SetOptions };
+type KVBatchResult = { successes: KVCommitResult[]; failures: { key: string[]; error: string }[] };
 ```
 
 ---
