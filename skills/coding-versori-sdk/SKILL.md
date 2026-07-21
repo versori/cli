@@ -84,7 +84,7 @@ main().then().catch((err) => console.error('Failed to run main()', err));
   "type": "module",
   "module": "dist/index.js",
   "dependencies": {
-    "@versori/run": "^0.8.0"
+    "@versori/run": "^0.8.1"
   }
 }
 ```
