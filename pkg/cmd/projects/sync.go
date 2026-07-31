@@ -109,8 +109,7 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 	existing, dirs := getExistingFiles(fullPath)
 
 	// Write/update all project files
-	var created, updated []string
-	unchanged := 0
+	var created, updated, unchanged []string
 
 	for _, f := range project.CurrentFiles.Files {
 		rel, action := updateFile(f, fullPath, existing, s.dryRun)
@@ -121,7 +120,7 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 		case actionUpdate:
 			updated = append(updated, rel)
 		case actionUnchanged:
-			unchanged++
+			unchanged = append(unchanged, rel)
 		}
 	}
 
@@ -217,13 +216,25 @@ const (
 	actionUpdate
 )
 
+// minCollapse is the number of files a directory must contribute before it is
+// worth collapsing: rewriting a lone "src/a.ts" as "src/ (1 file)" only hides
+// its name.
+const minCollapse = 2
+
+// planEntry is one line of the plan: either a single file, or a directory
+// standing in for every file beneath it.
+type planEntry struct {
+	path  string
+	count int
+}
+
 // printPlan reports only the files a sync would actually touch. Files whose
 // local contents already match the remote project are collapsed into a count so
 // the plan stays readable on projects where most files are up to date.
-func printPlan(created, updated, deleted []string, unchanged int) {
-	sort.Strings(created)
-	sort.Strings(updated)
-	sort.Strings(deleted)
+func printPlan(created, updated, deleted, unchanged []string) {
+	// Every path the sync knows about, used as the denominator when deciding
+	// whether a directory is affected in its entirety.
+	totals := countByDir(created, updated, deleted, unchanged)
 
 	for _, group := range []struct {
 		label string
@@ -239,20 +250,109 @@ func printPlan(created, updated, deleted []string, unchanged int) {
 
 		fmt.Println(group.label)
 
-		for _, rel := range group.files {
-			fmt.Println("  " + rel)
+		for _, e := range collapseByDir(group.files, totals) {
+			if e.count == 0 {
+				fmt.Println("  " + e.path)
+
+				continue
+			}
+
+			fmt.Printf("  %s/ (%s)\n", e.path, pluralFiles(e.count))
 		}
 	}
 
 	if len(created) == 0 && len(updated) == 0 && len(deleted) == 0 {
-		fmt.Printf("Already up to date (%d files unchanged).\n", unchanged)
+		fmt.Printf("Already up to date (%s unchanged).\n", pluralFiles(len(unchanged)))
 
 		return
 	}
 
-	if unchanged > 0 {
-		fmt.Printf("%d file(s) already up to date.\n", unchanged)
+	if len(unchanged) > 0 {
+		fmt.Printf("%s already up to date.\n", pluralFiles(len(unchanged)))
 	}
+}
+
+func pluralFiles(n int) string {
+	if n == 1 {
+		return "1 file"
+	}
+
+	return fmt.Sprintf("%d files", n)
+}
+
+// collapseByDir folds each run of files into the highest directory that this
+// group owns outright, mirroring the way git reports a wholly-untracked
+// directory as a single entry. A directory is only collapsed when every file
+// the sync knows about inside it belongs to this same group, so a collapsed
+// line can never hide a file with a different fate. The repository root is
+// never collapsed, otherwise a first-time sync would report nothing but ".".
+func collapseByDir(files []string, totals map[string]int) []planEntry {
+	mine := countByDir(files)
+
+	collapsed := make(map[string]int)
+
+	var entries []planEntry
+
+	for _, rel := range files {
+		// Ancestors run deepest-first, so walk backwards to prefer the
+		// shallowest directory this group fully owns.
+		anc := ancestors(rel)
+
+		target := ""
+
+		for i := len(anc) - 1; i >= 0; i-- {
+			d := anc[i]
+			if mine[d] == totals[d] && totals[d] >= minCollapse {
+				target = d
+
+				break
+			}
+		}
+
+		if target == "" {
+			entries = append(entries, planEntry{path: rel})
+
+			continue
+		}
+
+		collapsed[target] = mine[target]
+	}
+
+	for dir, count := range collapsed {
+		entries = append(entries, planEntry{path: dir, count: count})
+	}
+
+	sort.Slice(entries, func(i, j int) bool { return entries[i].path < entries[j].path })
+
+	return entries
+}
+
+// countByDir tallies how many of the given files live under each directory, at
+// every level of nesting.
+func countByDir(groups ...[]string) map[string]int {
+	counts := make(map[string]int)
+
+	for _, files := range groups {
+		for _, rel := range files {
+			for _, d := range ancestors(rel) {
+				counts[d]++
+			}
+		}
+	}
+
+	return counts
+}
+
+// ancestors lists the directories containing rel, deepest first, excluding the
+// root itself.
+func ancestors(rel string) []string {
+	var out []string
+
+	for dir := filepath.Dir(rel); dir != "." && dir != string(os.PathSeparator); dir = filepath.Dir(dir) {
+		out = append(out, dir)
+	}
+
+	return out
 }
 
 func updateFile(f v1.File, fullPath string, existing map[string]struct{}, dryRun bool) (string, fileAction) {
@@ -281,11 +381,11 @@ func updateFile(f v1.File, fullPath string, existing map[string]struct{}, dryRun
 	// Compare against the local file so that both modes agree on what is
 	// actually affected: a file whose contents already match is left alone by
 	// the real sync, so a dry-run must not report it either.
-	old, readErr := os.ReadFile(dest)
+	oldContent, readErr := os.ReadFile(dest)
 
 	switch {
 	case readErr == nil:
-		if bytes.Equal(old, newContent) {
+		if bytes.Equal(oldContent, newContent) {
 			action = actionUnchanged
 		}
 	case os.IsNotExist(readErr):

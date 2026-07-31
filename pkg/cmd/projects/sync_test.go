@@ -147,6 +147,99 @@ func TestPruneEmptyDirsKeepsNonEmpty(t *testing.T) {
 	}
 }
 
+func TestCollapseByDir(t *testing.T) {
+	tests := []struct {
+		name string
+		// group is the set being rendered; others are the remaining known
+		// files, which decide whether a directory is uniformly affected.
+		group  []string
+		others []string
+		want   []string
+	}{
+		{
+			name:  "whole directory collapses",
+			group: []string{"src/a.ts", "src/b.ts", "src/c.ts"},
+			want:  []string{"src/ (3 files)"},
+		},
+		{
+			name:   "mixed directory does not collapse",
+			group:  []string{"src/a.ts", "src/b.ts"},
+			others: []string{"src/keep.ts"},
+			want:   []string{"src/a.ts", "src/b.ts"},
+		},
+		{
+			name:  "collapses to shallowest fully owned dir",
+			group: []string{"src/a.ts", "src/nested/b.ts", "src/nested/c.ts"},
+			want:  []string{"src/ (3 files)"},
+		},
+		{
+			name:   "collapses nested dir when parent is mixed",
+			group:  []string{"src/nested/b.ts", "src/nested/c.ts"},
+			others: []string{"src/keep.ts"},
+			want:   []string{"src/nested/ (2 files)"},
+		},
+		{
+			name:  "single file in dir stays expanded",
+			group: []string{"src/only.ts"},
+			want:  []string{"src/only.ts"},
+		},
+		{
+			name:  "root files are never collapsed",
+			group: []string{"a.ts", "b.ts"},
+			want:  []string{"a.ts", "b.ts"},
+		},
+		{
+			name:  "root files listed alongside collapsed dir",
+			group: []string{"package.json", "src/a.ts", "src/b.ts"},
+			want:  []string{"package.json", "src/ (2 files)"},
+		},
+		{
+			name:  "independent sibling dirs collapse separately",
+			group: []string{"a/one.ts", "a/two.ts", "b/one.ts", "b/two.ts"},
+			want:  []string{"a/ (2 files)", "b/ (2 files)"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			totals := countByDir(tt.group, tt.others)
+
+			var got []string
+
+			for _, e := range collapseByDir(tt.group, totals) {
+				if e.count == 0 {
+					got = append(got, e.path)
+
+					continue
+				}
+
+				got = append(got, e.path+"/ ("+pluralFiles(e.count)+")")
+			}
+
+			if len(got) != len(tt.want) {
+				t.Fatalf("collapseByDir() = %v, want %v", got, tt.want)
+			}
+
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("collapseByDir() = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestPluralFiles(t *testing.T) {
+	for _, tt := range []struct {
+		n    int
+		want string
+	}{{0, "0 files"}, {1, "1 file"}, {2, "2 files"}} {
+		if got := pluralFiles(tt.n); got != tt.want {
+			t.Fatalf("pluralFiles(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func ptr(s string) *string {
 	return &s
 }
