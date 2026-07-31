@@ -47,6 +47,9 @@ func GetRootCommand() *cobra.Command {
 
 	rootCmd.AddCommand(versionCmd)
 
+	// update command
+	rootCmd.AddCommand(newUpdateCommand())
+
 	// context command
 	ctxCommand := newCtxCommand(configFactory)
 	rootCmd.AddCommand(ctxCommand)
