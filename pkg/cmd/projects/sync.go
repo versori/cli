@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -105,26 +106,42 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 		utils.NewExitError().WithMessage("failed to get project").WithReason(err).Done()
 	}
 
-	existing := getExistingFiles(fullPath)
+	existing, dirs := getExistingFiles(fullPath)
 
 	// Write/update all project files
+	var created, updated []string
+	unchanged := 0
+
 	for _, f := range project.CurrentFiles.Files {
-		updateFile(f, fullPath, existing, s.dryRun)
+		rel, action := updateFile(f, fullPath, existing, s.dryRun)
+
+		switch action {
+		case actionCreate:
+			created = append(created, rel)
+		case actionUpdate:
+			updated = append(updated, rel)
+		case actionUnchanged:
+			unchanged++
+		}
 	}
 
 	// Delete any extra files
-	if len(existing) > 0 {
-		if s.dryRun {
-			fmt.Println("Files that would be deleted:")
-			for rel := range existing {
-				fmt.Println("  " + rel)
-			}
-		} else {
-			for rel := range existing {
-				abs := filepath.Join(fullPath, rel)
-				_ = os.Remove(abs)
-			}
+	if !s.dryRun {
+		for rel := range existing {
+			abs := filepath.Join(fullPath, rel)
+			_ = os.Remove(abs)
 		}
+
+		pruneEmptyDirs(fullPath, dirs)
+	}
+
+	if s.dryRun {
+		deleted := make([]string, 0, len(existing))
+		for rel := range existing {
+			deleted = append(deleted, rel)
+		}
+
+		printPlan(created, updated, deleted, unchanged)
 	}
 
 	if s.assets {
@@ -191,7 +208,54 @@ func (s *Sync) syncAssets(projectId, fullPath string) {
 	}
 }
 
-func updateFile(f v1.File, fullPath string, existing map[string]struct{}, dryRun bool) {
+// fileAction describes what a sync did (or would do) to a single project file.
+type fileAction int
+
+const (
+	actionUnchanged fileAction = iota
+	actionCreate
+	actionUpdate
+)
+
+// printPlan reports only the files a sync would actually touch. Files whose
+// local contents already match the remote project are collapsed into a count so
+// the plan stays readable on projects where most files are up to date.
+func printPlan(created, updated, deleted []string, unchanged int) {
+	sort.Strings(created)
+	sort.Strings(updated)
+	sort.Strings(deleted)
+
+	for _, group := range []struct {
+		label string
+		files []string
+	}{
+		{"Files that would be created:", created},
+		{"Files that would be updated:", updated},
+		{"Files that would be deleted:", deleted},
+	} {
+		if len(group.files) == 0 {
+			continue
+		}
+
+		fmt.Println(group.label)
+
+		for _, rel := range group.files {
+			fmt.Println("  " + rel)
+		}
+	}
+
+	if len(created) == 0 && len(updated) == 0 && len(deleted) == 0 {
+		fmt.Printf("Already up to date (%d files unchanged).\n", unchanged)
+
+		return
+	}
+
+	if unchanged > 0 {
+		fmt.Printf("%d file(s) already up to date.\n", unchanged)
+	}
+}
+
+func updateFile(f v1.File, fullPath string, existing map[string]struct{}, dryRun bool) (string, fileAction) {
 	// sanitize and ensure path stays within fullPath
 	rel := filepath.Clean(f.Filename)
 	if strings.Contains(rel, "..") || filepath.IsAbs(rel) {
@@ -211,34 +275,34 @@ func updateFile(f v1.File, fullPath string, existing map[string]struct{}, dryRun
 			Done()
 	}
 
-	if dryRun {
-		// In dry-run mode, just check if file exists and print what would happen
-		if _, err := os.Stat(dest); os.IsNotExist(err) {
-			fmt.Println("Would create: " + rel)
-		} else {
-			fmt.Println("Would update: " + rel)
+	newContent := []byte(f.Content)
+	action := actionUpdate
+
+	// Compare against the local file so that both modes agree on what is
+	// actually affected: a file whose contents already match is left alone by
+	// the real sync, so a dry-run must not report it either.
+	old, readErr := os.ReadFile(dest)
+
+	switch {
+	case readErr == nil:
+		if bytes.Equal(old, newContent) {
+			action = actionUnchanged
 		}
-	} else {
+	case os.IsNotExist(readErr):
+		action = actionCreate
+	default:
+		// Only ignore not-exist errors; fail on others
+		utils.NewExitError().WithMessage("failed to read existing file " + dest).WithReason(readErr).Done()
+	}
+
+	if !dryRun && action != actionUnchanged {
 		// make sure directory exists
 		if mkErr := os.MkdirAll(filepath.Dir(dest), 0755); mkErr != nil {
 			utils.NewExitError().WithMessage("failed to create directory for " + dest).WithReason(mkErr).Done()
 		}
 
-		newContent := []byte(f.Content)
-		if old, readErr := os.ReadFile(dest); readErr == nil {
-			if !bytes.Equal(old, newContent) {
-				if writeErr := os.WriteFile(dest, newContent, 0o600); writeErr != nil {
-					utils.NewExitError().WithMessage("failed to update file " + dest).WithReason(writeErr).Done()
-				}
-			}
-		} else {
-			// Only ignore not-exist errors; fail on others
-			if !os.IsNotExist(readErr) {
-				utils.NewExitError().WithMessage("failed to read existing file " + dest).WithReason(readErr).Done()
-			}
-			if writeErr := os.WriteFile(dest, newContent, 0o600); writeErr != nil {
-				utils.NewExitError().WithMessage("failed to create file " + dest).WithReason(writeErr).Done()
-			}
+		if writeErr := os.WriteFile(dest, newContent, 0o600); writeErr != nil {
+			utils.NewExitError().WithMessage("failed to write file " + dest).WithReason(writeErr).Done()
 		}
 	}
 
@@ -246,11 +310,19 @@ func updateFile(f v1.File, fullPath string, existing map[string]struct{}, dryRun
 	if relKey, relErr := filepath.Rel(fullPath, dest); relErr == nil {
 		delete(existing, relKey)
 	}
+
+	return rel, action
 }
 
-func getExistingFiles(fullPath string) map[string]struct{} {
+// getExistingFiles returns the set of local files (relative to fullPath) that
+// are candidates for deletion, plus the directories encountered along the way.
+// Directories are kept separate because they are only removed once they are
+// left empty, so they must not appear in the list of affected files.
+func getExistingFiles(fullPath string) (map[string]struct{}, []string) {
 	// Build a set of existing files (relative to fullPath) that could be deleted later
 	existing := map[string]struct{}{}
+
+	var dirs []string
 
 	checker := utils.NewChecker()
 
@@ -305,6 +377,12 @@ func getExistingFiles(fullPath string) map[string]struct{} {
 			return nil
 		}
 
+		if d.IsDir() {
+			dirs = append(dirs, rel)
+
+			return nil
+		}
+
 		existing[rel] = struct{}{}
 
 		return nil
@@ -313,5 +391,19 @@ func getExistingFiles(fullPath string) map[string]struct{} {
 		utils.NewExitError().WithMessage("failed to walk directory").WithReason(err).Done()
 	}
 
-	return existing
+	return existing, dirs
+}
+
+// pruneEmptyDirs removes directories left empty after orphaned files were
+// deleted, deepest first so that parents become removable in the same pass.
+// Directories which still hold files are left alone: os.Remove fails on them
+// and the error is intentionally ignored.
+func pruneEmptyDirs(fullPath string, dirs []string) {
+	sort.Slice(dirs, func(i, j int) bool {
+		return strings.Count(dirs[i], string(os.PathSeparator)) > strings.Count(dirs[j], string(os.PathSeparator))
+	})
+
+	for _, rel := range dirs {
+		_ = os.Remove(filepath.Join(fullPath, rel))
+	}
 }
