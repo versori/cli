@@ -64,7 +64,7 @@ paths:
         - name: starred
           in: query
           required: false
-          description: When true, only projects the organisation has starred are returned.
+          description: If true, return only projects that have been starred.
           schema:
             type: boolean
       responses:
@@ -173,43 +173,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /o/{organisation_id}/projects/{project_id}/star:
-    parameters:
-      - $ref: "#/components/parameters/organisation_id"
-      - $ref: "#/components/parameters/project_id"
-    put:
-      operationId: StarProject
-      summary: Star Project
-      description: |
-        StarProject marks the project as a starred reference project for the organisation. Starred projects are treated as blessed examples and may be surfaced to AI coding tools as reference patterns.
-      tags:
-        - projects
-      responses:
-        "204":
-          description: No Content
-        default:
-          description: Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    delete:
-      operationId: UnstarProject
-      summary: Unstar Project
-      description: |
-        UnstarProject removes the starred flag from the project for the organisation.
-      tags:
-        - projects
-      responses:
-        "204":
-          description: No Content
-        default:
-          description: Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
   /o/{organisation_id}/projects/{project_id}/clone:
     parameters:
       - $ref: "#/components/parameters/organisation_id"
@@ -230,6 +193,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Project"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/star:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    put:
+      operationId: StarProject
+      summary: Star Project
+      description: |
+        StarProject marks the project as starred for the organisation. Starred projects are highlighted
+        as containing useful reference patterns.
+      tags:
+        - projects
+      responses:
+        "204":
+          description: OK
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: UnstarProject
+      summary: Unstar Project
+      description: |
+        UnstarProject removes the starred marker from the project.
+      tags:
+        - projects
+      responses:
+        "204":
+          description: OK
         default:
           description: Error
           content:
@@ -406,16 +407,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /o/{organisation_id}/projects/{project_id}/sentiment:
+  /o/{organisation_id}/projects/{project_id}/sdk-major-version:
     parameters:
       - $ref: "#/components/parameters/organisation_id"
       - $ref: "#/components/parameters/project_id"
     post:
-      operationId: AddProjectSentiment
-      summary: Add sentiment data to project history
+      operationId: ChangeProjectSDKMajorVersion
+      summary: Changes the SDK major version that is used for the project
       description: |
-        AddProjectSentiment adds a new sentiment entry to the project's sentiment history.
-        This endpoint appends to the existing sentiment history in the project metadata.
+        Changes the major version of the versori run SDK that is used for the project.
+        The SDK version can either be 0 or 1 corresponding to the major version of the.
+        Hence 0 -> v0.x.x and 1 -> v1.x.x.
       tags:
         - projects
       requestBody:
@@ -423,7 +425,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SentimentRequest"
+              $ref: "#/components/schemas/SDKMajorVersionRequest"
       responses:
         "200":
           description: OK
@@ -437,6 +439,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
 
   /o/{organisation_id}/projects/{project_id}/versions:
     parameters:
@@ -563,6 +566,145 @@ paths:
       responses:
         "204":
           description: OK
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/repo/sync:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    post:
+      operationId: SyncProjectRepo
+      summary: Sync Project Files To Repository
+      description: |
+        Sync project files to the configured Git repository. This can create or update files on a source branch
+        and optionally create a merge request to a target branch.
+      tags:
+        - projects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepoSyncRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepoSyncResult"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/repo/pull:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    post:
+      operationId: PullProjectRepo
+      summary: Pull Project Files From Repository
+      description: |
+        Pull the project files tarball from the configured Git repository branch and replace the current project files.
+      tags:
+        - projects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepoPullRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepoPullResult"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/repo/files:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    get:
+      operationId: ListProjectRepoFiles
+      summary: List Repository Files
+      description: |
+        List files from the configured repository for the project.
+      tags:
+        - projects
+      parameters:
+        - in: query
+          name: ref
+          schema:
+            type: string
+          required: false
+          description: Git branch or ref to list files from.
+        - in: query
+          name: path
+          schema:
+            type: string
+          required: false
+          description: Optional directory path filter.
+        - in: query
+          name: recursive
+          schema:
+            type: boolean
+            default: true
+          required: false
+          description: Whether to list files recursively.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepoFileListResponse"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/repo/merge-requests:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    post:
+      operationId: CreateProjectRepoMergeRequest
+      summary: Create Project Repository Merge Request
+      description: |
+        Create a merge request for a project repository branch.
+      tags:
+        - projects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepoMergeRequestCreateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepoMergeRequestResult"
         default:
           description: Error
           content:
@@ -724,6 +866,80 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProjectTriggers"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/testing/agent/start:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    post:
+      operationId: StartTestAgent
+      summary: Start Agentic Code Review
+      description: |
+        StartTestAgent triggers Claude Code to review and fix the files currently
+        loaded in the running test container. The test container must already be
+        running; this endpoint will not cold-start it.
+
+        The supervisor streams Claude's output and a final claude_done event over
+        the project websocket. By the time claude_done is broadcast, any fixed files
+        have already been persisted to one-api.
+      tags:
+        - projects
+      responses:
+        "202":
+          description: Accepted - agent run has been triggered
+        "409":
+          description: Conflict - an agent run is already in progress for this project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "412":
+          description: Precondition Failed - test container is not running or has no files loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/testing/agent/stop:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    post:
+      operationId: StopTestAgent
+      summary: Stop Agentic Code Review
+      description: |
+        StopTestAgent cancels any in-flight Claude Code review on the running
+        test container. Idempotent: if no agent run is in progress (because
+        none was started, or it already finished), this still succeeds with
+        204 No Content. Idempotent specifically so the UI can fire-and-forget
+        on panel close / unmount without having to track session state.
+
+        On success, the supervisor cancels the active phase, kills the Claude
+        subprocess, and broadcasts a final claude_done event with status
+        "cancelled" over the project websocket.
+      tags:
+        - projects
+      responses:
+        "204":
+          description: No Content - any in-flight agent run has been cancelled
+        "412":
+          description: Precondition Failed - test container is not running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Error
           content:
@@ -1344,8 +1560,7 @@ paths:
         - name: search
           in: query
           description: |
-            Search is a string that is used to filter the list of End Users. The search string is matched against the
-            id, externalId and displayName fields.
+            Filter string matched against End User id, externalId, and displayName fields.
           schema:
             type: string
         - name: activated
@@ -1826,7 +2041,7 @@ paths:
       - $ref: "#/components/parameters/environment_id"
     put:
       operationId: UpdateEnvironmentConfig
-      summary: UpdateEnvironmentConfig updates the environment config for infrastructure.
+      summary: Updates the environment config for infrastructure.
       tags:
         - projects
       requestBody:
@@ -2661,20 +2876,45 @@ paths:
         - name: search_date
           in: query
           description: |
-            Which date to use in after and before queries. If not provided, defaults to createdAt.
-            The result will also be ordered by this date.
+            Which field drives ordering and cursor pagination (`before` / `after`).
+            If not provided, defaults to createdAt.
+            For createdAt and lastSeenAt, use RFC3339 timestamps in before/after.
+            For seenCount, before/after are decimal integers as strings (occurrence counts).
           schema:
             type: string
             enum:
               - createdAt
               - lastSeenAt
-        - name: status
+              - seenCount
+        - name: sort_direction
           in: query
           description: |
-            Filter issues by status. Can be one of 'open', 'closed', 'acked' or 'resolved'.
-            If not provided, defaults to getting issues of all statuses.
+            Which direction to order issues in.
+            If not provided, defaults to descending.
           schema:
-            $ref: '#/components/schemas/IssueStatusEnum'
+            type: string
+            enum:
+              - asc
+              - desc
+        - name: status
+          in: query
+          style: form
+          explode: true
+          description: |
+            Filter issues by status. Repeat this parameter to match multiple statuses (e.g. open and acked).
+            Valid values: 'open', 'closed', 'acked', 'resolved'.
+            If not provided, only open issues are returned unless all_statuses is true.
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/IssueStatusEnum'
+        - name: all_statuses
+          in: query
+          description: |
+            When true, return issues of any status (status query parameter still applies if set).
+            When false or omitted, missing status defaults to open issues only.
+          schema:
+            type: boolean
         - name: project_id
           in: query
           description: |
@@ -2836,6 +3076,30 @@ paths:
       responses:
         '204':
           description: Notification channel deleted successfully
+    patch:
+      summary: Edit a notification channel
+      operationId: EditNotificationChannel
+      tags:
+        - notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditNotificationChannel'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationChannel'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /projects/{project_id}/notifications:
     parameters:
@@ -2940,6 +3204,110 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/usage/{metric}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - name: metric
+        in: path
+        required: true
+        description: |
+          Metric name from the platform usage registry, e.g. `kv.ops.read`,
+          `project.cpu.allocation`, `org.members`. The full list of supported
+          metrics is validated server-side; unknown values return 400.
+        schema:
+          type: string
+    get:
+      operationId: GetOrganisationUsage
+      summary: Query platform usage for a single metric.
+      description: |
+        Returns time-bucketed usage for a single metric in `[start, end)`.
+        The range is capped at 30 days. For project-scoped metrics, omit
+        `project_id` to receive one series per project; pass `project_id`
+        to filter to a single project. Org-level metrics ignore `project_id`.
+      tags:
+        - usage
+      parameters:
+        - name: start
+          in: query
+          required: true
+          description: Inclusive start of the query range, RFC3339.
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          required: true
+          description: Exclusive end of the query range, RFC3339. Must be after `start` and within 30 days of it.
+          schema:
+            type: string
+            format: date-time
+        - name: project_id
+          in: query
+          required: false
+          description: Optional project ULID. Only valid for project-scoped metrics; rejects with 400 otherwise.
+          schema:
+            type: string
+            format: ulid
+            x-go-type: ulid.ULID
+            x-go-type-import:
+              path: github.com/versori/cli/pkg/ulid
+        - name: granularity
+          in: query
+          required: false
+          description: |
+            Bucket size for the returned series. One of `15m`, `1h`, `6h`, `1d`.
+            When omitted, the server picks a sensible default from the range
+            (`<=24h -> 15m`, `<=7d -> 1h`, `<=30d -> 6h`). Ignored for
+            `view=latest`.
+          schema:
+            type: string
+        - name: view
+          in: query
+          required: false
+          description: |
+            Aggregation view. `series` (default) returns a time-bucketed
+            series. `latest` returns the most recent value per project (and an
+            org-wide rollup in `summary.latest`) and is only valid for gauge
+            metrics; requesting it for a counter returns 400.
+          schema:
+            type: string
+            enum:
+              - series
+              - latest
+        - name: group_by
+          in: query
+          required: false
+          description: |
+            Grouping for project-scoped metrics. `project` (default) returns one
+            series per project; `org` sums the per-project series into a single
+            org-level series. Ignored for org-scoped metrics and when
+            `project_id` is supplied.
+          schema:
+            type: string
+            enum:
+              - project
+              - org
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageResponse"
+        "501":
+          description: Usage querying is disabled in this environment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   "/o/{organisation_id}/store":
     post:
       operationId: CreateStore
@@ -3200,12 +3568,12 @@ paths:
               properties:
                 keys:
                   type: array
+                  minItems: 1
+                  maxItems: 5000
                   items:
                     type: array
                     items:
                       type: string
-                options:
-                  $ref: '#/components/schemas/DeleteOptions'
       responses:
         '200':
           description: Keys deleted successfully
@@ -3213,6 +3581,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchDeleteKVResponse'
+  "/store/{store}/kv/batch/insert":
+    post:
+      operationId: BatchInsertKV
+      summary: Atomically insert multiple new key-value pairs
+      description: >-
+        Inserts every entry as a new row in a single transaction. The whole
+        batch commits or none of it does. Payloads containing duplicate keys are
+        rejected with 400; a key that already exists in the store fails the
+        entire request with 409 and nothing is written.
+      tags:
+        - kv store
+      parameters:
+        - in: path
+          name: store
+          required: true
+          schema:
+            type: string
+            format: ulid
+            x-go-type: ulid.ULID
+            x-go-name: OrganisationID
+            x-go-type-import:
+              path: github.com/versori/cli/pkg/ulid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchInsertKVRequest'
+      responses:
+        '200':
+          description: Entries inserted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchInsertKVResponse'
   "/store/{store}/kv/list":
     post:
       operationId: ListKV
@@ -3273,6 +3676,974 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CountKVResponse'
+
+  /o/{organisation_id}/projects/{project_id}/environments/{environment_id}/workflows/submit:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/environment_id"
+    post:
+      operationId: SubmitWorkflows
+      summary: Submit a batch of workflows.
+      description: |
+        Submit queues a batch of workflows for execution. Each entry must include
+        a group and `executionId` in its metadata.
+      tags:
+        - workflows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitWorkflowsRequest'
+      responses:
+        '200':
+          description: Returns the submitted workflows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflows'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/environments/{environment_id}/workflows/peek:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/environment_id"
+    get:
+      operationId: PeekWorkflows
+      summary: Peek at workflows without locking them.
+      description: |
+        Peek returns workflows without locking them so they can still be fetched
+        by workers.
+      tags:
+        - workflows
+      parameters:
+        - name: group
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            description: |
+              Optional status filter. One of 'available', 'locked', 'completed', 'failed'.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            description: Maximum number of workflows to return. Defaults to 10, max 100.
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            description: |
+              Opaque cursor for keyset pagination, taken from `pagination.nextCursor`
+              of a previous response. Must be the id of the last workflow on that page.
+              When `order` is `desc` (default), returns workflows with id less than
+              the cursor. When `order` is `asc`, returns workflows with id greater than
+              the cursor. Use the same `order` value as the request that produced the cursor.
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Sort workflows by id. Defaults to desc.
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeekWorkflowsResponse'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/environments/{environment_id}/workflows/complete:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/environment_id"
+    post:
+      operationId: CompleteWorkflow
+      summary: Mark a workflow as completed or failed.
+      tags:
+        - workflows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteWorkflowRequest'
+      responses:
+        '204':
+          description: Workflow completed.
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/environments/{environment_id}/workflows/reschedule:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/environment_id"
+    post:
+      operationId: RescheduleWorkflow
+      summary: Reschedule a workflow for redelivery.
+      tags:
+        - workflows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RescheduleWorkflowRequest'
+      responses:
+        '204':
+          description: Workflow rescheduled.
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/environments/{environment_id}/workflows/{workflow_id}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/environment_id"
+      - $ref: "#/components/parameters/workflow_id"
+    get:
+      operationId: GetWorkflow
+      summary: Get a workflow by id.
+      tags:
+        - workflows
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            description: |
+              Optional status filter. One of 'available', 'locked', 'completed', 'failed'.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/bindings:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: '#/components/parameters/project_id'
+    get:
+      parameters:
+        - $ref: '#/components/parameters/project_env'
+      operationId: GetProjectBindings
+      summary: Gets bindings for a project
+      description: |
+        Retrieves the bindings for the project. If you have the `project_env` query parameter set, only 
+        the bindings for that environment are returned.
+      tags:
+        - projects
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectBindings'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: CreateBinding
+      summary: Creates a binding for use in a project.
+      description: |
+        Creates a binding for use in a project. If you pass an environmentID in the request body, this will create a binding
+        for use in that specific environment only. Names of bindings must be unique within a project, however, environment
+        specific bindings can have the same names and will override project bindings.
+      tags:
+        - projects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBindingRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Binding'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/bindings/{name}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/project_env'
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: DeleteBinding
+      summary: Deletes a binding for a project.
+      tags:
+        - projects
+      description: |
+        Deletes a binding for a project. This operation only unlinks the binding, the underlying connection/kv store
+        etc are left untouched. If you need to remove an environment binding then you can use the `project_env` query
+        parameter to specify the environment by name or ID.
+      responses:
+        '204':
+          description: OK
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/bindings/{binding_name}/activation-binding/{name}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/project_env'
+      - name: binding_name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: DeleteActivationBinding
+      summary: Deletes an activation binding from the parent binding.
+      responses:
+        '204':
+          description: OK
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /o/{organisation_id}/entitlements:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+    get:
+      operationId: ListOrganisationEntitlements
+      summary: List resolved entitlement decisions for an organisation.
+      description: |
+        Returns the resolved enabled/disabled decision for every feature in the
+        entitlements catalog. Features the organisation has no explicit grant for
+        are resolved against the catalog default, so the response always contains
+        the full catalog.
+      tags:
+        - billing
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntitlementDecisionList"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/entitlements/catalog:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+    get:
+      operationId: ListEntitlementsCatalog
+      summary: List the static entitlements feature catalog.
+      description: |
+        Returns every feature in the catalog regardless of whether this
+        organisation has any grants. Useful for building dropdowns or
+        admin UIs that need to enumerate all possible feature keys.
+        The response is identical for every organisation — it reflects the
+        global catalog, not org-specific grant state.
+      tags:
+        - billing
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntitlementCatalog"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/entitlements/{feature_key}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - name: feature_key
+        in: path
+        required: true
+        description: |
+          Entitlements catalog key for the feature, e.g. `ai.copilot` or
+          `projects.custom_domains`. Unknown keys return 404.
+        schema:
+          type: string
+    get:
+      operationId: GetOrganisationEntitlement
+      summary: Get the resolved entitlement decision for a single feature.
+      tags:
+        - billing
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntitlementDecision"
+        "404":
+          description: Feature key not found in the catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/quotas:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+    get:
+      operationId: ListOrganisationQuotas
+      summary: List resolved quota decisions for an organisation.
+      description: |
+        Returns the resolved limit and current usage for every quota in the
+        catalog. Quotas with no explicit grant are resolved against the catalog
+        default. The `usage` field is populated from the slow-path quota_usage
+        table and reflects the current period bucket (e.g. the current calendar
+        month for monthly quotas).
+      tags:
+        - billing
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaDecisionList"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/quotas/catalog:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+    get:
+      operationId: ListQuotasCatalog
+      summary: List the static quotas catalog.
+      description: |
+        Returns every quota in the catalog regardless of whether this
+        organisation has any grants. Includes the default limit, enforcement,
+        kind, and unit for each quota. Useful for building dropdowns or admin
+        UIs that need to enumerate all possible quota keys.
+        The response is identical for every organisation — it reflects the
+        global catalog, not org-specific grant state.
+      tags:
+        - billing
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaCatalog"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/quotas/{quota_key}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - name: quota_key
+        in: path
+        required: true
+        description: |
+          Quotas catalog key, e.g. `projects.max` or `ai.tokens.month`. Unknown
+          keys return 404.
+        schema:
+          type: string
+    get:
+      operationId: GetOrganisationQuota
+      summary: Get the resolved quota decision for a single quota.
+      tags:
+        - billing
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaDecision"
+        "404":
+          description: Quota key not found in the catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # Git OAuth — per-user authorisation against an Organisation's configured
+  # Git provider. The provider configuration (instance URL, client_id, client
+  # secret) lives in organisations-api; this surface drives the user-facing
+  # OAuth dance and stores the issued tokens in the credentials service.
+  # ---------------------------------------------------------------------------
+
+  /o/{organisation_id}/git/{provider}/oauth/initialise:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/git_provider"
+    post:
+      operationId: InitialiseGitOAuth
+      summary: Begin a per-user Git OAuth 2.0 authorisation
+      description: |
+        Generates a PKCE-protected `state` plus a fully-formed authorisation URL for the provider configured at the
+        organisation level. The frontend opens this URL in a popup; on completion it calls `CompleteGitOAuth`.
+      tags:
+        - git
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitialiseGitOAuthRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitialiseGitOAuthResponse"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/git/{provider}/oauth/complete:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/git_provider"
+    post:
+      operationId: CompleteGitOAuth
+      summary: Finalise a Git OAuth 2.0 authorisation
+      description: |
+        Exchanges the authorisation `code` (sent back to the redirect URI) for an access token via the credentials
+        service, then resolves the external user identity and stores a `GitUserConnection` row binding the
+        Versori user to the issued credential.
+      tags:
+        - git
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteGitOAuthRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitUserConnection"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/git/{provider}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/git_provider"
+    delete:
+      operationId: PurgeGitProviderData
+      summary: Purge all Git data tied to an organisation's provider
+      description: |
+        Internal endpoint invoked by organisations-api when an organisation's Git provider configuration is removed.
+        Cascades that removal into platform-api by deleting every user's Git connection on the provider plus every
+        project Git binding (and its dependent per-environment bindings and per-user working branches) within the
+        organisation, so nothing Git-related lingers after the provider it depended on is gone. Idempotent.
+      tags:
+        - git
+      responses:
+        "204":
+          description: Purged
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/git/connections:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+    get:
+      operationId: ListGitUserConnections
+      summary: List the calling user's Git connections in this organisation
+      description: |
+        Returns one row per (provider, instance) the calling user has authorised. Used by the frontend to render the
+        "Connected to GitLab as @alice" panel and to decide whether to prompt for re-authorisation.
+      tags:
+        - git
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitUserConnectionList"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/git/connections/{git_connection_id}:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/git_connection_id"
+    delete:
+      operationId: DeleteGitUserConnection
+      summary: Disconnect a user's Git authorisation
+      description: |
+        Removes the `GitUserConnection` row and best-effort deletes the backing credential. Subsequent operations that
+        require Git access for this user will require re-authorisation.
+      tags:
+        - git
+      responses:
+        "204":
+          description: Deleted
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/git/connections/{git_connection_id}/repositories:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/git_connection_id"
+    get:
+      operationId: ListGitRepositories
+      summary: List repositories accessible via a Git connection
+      description: |
+        Proxies the provider's "list repositories" API using the connection's stored access token, returning a stable
+        subset of fields the UI needs to render a picker. The frontend never sees the access token itself.
+      tags:
+        - git
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          required: false
+          description: Optional case-insensitive search filter applied by the provider.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitRepositoryList"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/git/connections/{git_connection_id}/branches:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/git_connection_id"
+    get:
+      operationId: ListGitBranches
+      summary: List branches of a repository accessible via a Git connection
+      description: |
+        Proxies the provider's "list branches" API for a specific repository. `repositoryId` is the provider-side
+        repository identifier returned by `ListGitRepositories`.
+      tags:
+        - git
+      parameters:
+        - in: query
+          name: repositoryId
+          schema:
+            type: string
+          required: true
+          description: Provider-side repository identifier returned by ListGitRepositories.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitBranchList"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/git/repository-bindings:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+    get:
+      operationId: ListOrgGitRepositoryBindings
+      summary: List Git repository bindings for all projects in the organisation
+      description: |
+        Returns which repositories are already linked to integrations in this organisation. Used by the repo picker to
+        disable repositories that are taken by another project.
+      tags:
+        - git
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgGitRepositoryBindingList"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/git-binding:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    get:
+      operationId: GetProjectGitBinding
+      summary: Get the Git binding for a project
+      description: |
+        Returns a wrapper carrying the project's Git binding when linked, or `{ "binding": null }` when the project
+        has not been linked to a Git repository. Always 200; callers can use the same response to gate dependent
+        queries (per-environment bindings, working branch) without an error round-trip.
+      tags:
+        - git
+      responses:
+        "200":
+          description: OK (binding when linked, null when not)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetProjectGitBindingResponse"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: UpsertProjectGitBinding
+      summary: Link or relink a project to a Git repository
+      description: |
+        Creates the binding the first time, updates it on every subsequent call. The binding is shared across
+        all org members - whoever opens the project sees the same link. The calling user must own the referenced
+        git connection; that user is recorded as `linkedBy` for audit.
+      tags:
+        - git
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectGitBindingUpsert"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectGitBinding"
+        "409":
+          description: Repository is already linked to another integration in this organisation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteProjectGitBinding
+      summary: Unlink a project from its Git repository
+      description: Removes the project's binding row. No-op if no binding exists.
+      tags:
+        - git
+      responses:
+        "204":
+          description: Unlinked
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/git/environment-bindings:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    get:
+      operationId: ListEnvironmentGitBindings
+      summary: List per-environment Git bindings for a project
+      description: |
+        Returns one row per environment that has been mapped to a Git branch. Environments without a mapping
+        are omitted. The project must already be linked via `/git-binding`.
+      tags:
+        - git
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentGitBindingList"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/environments/{environment_id}/git-binding:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+      - $ref: "#/components/parameters/environment_id"
+    get:
+      operationId: GetEnvironmentGitBinding
+      summary: Get the Git binding for a single environment
+      description: |
+        Returns the environment's Git branch + deployment mode binding. 404 when this environment has not yet
+        been mapped to a branch. The project must already be linked via `/git-binding`.
+      tags:
+        - git
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentGitBinding"
+        "404":
+          description: No binding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: UpsertEnvironmentGitBinding
+      summary: Create or update the Git binding for a single environment
+      description: |
+        Maps the environment to a Git branch with a deployment mode. The project must already be linked via
+        `/git-binding`. If `createFromBranch` is set and `branchName` does not yet exist on the repository,
+        the branch is created from that base before the binding is saved.
+      tags:
+        - git
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnvironmentGitBindingUpsert"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentGitBinding"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteEnvironmentGitBinding
+      summary: Remove the Git binding for a single environment
+      description: |
+        Idempotent. Removes the environment's branch mapping; does not delete the branch on the Git provider.
+      tags:
+        - git
+      responses:
+        "204":
+          description: Unmapped
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /o/{organisation_id}/projects/{project_id}/git/working-branch:
+    parameters:
+      - $ref: "#/components/parameters/organisation_id"
+      - $ref: "#/components/parameters/project_id"
+    get:
+      operationId: GetProjectWorkingBranch
+      summary: Get the calling user's working branch for the project
+      description: |
+        Working branches are scoped per (user, project) so different developers can iterate independently
+        on the same project without stepping on each other. 404 when the user has not picked a working
+        branch yet.
+      tags:
+        - git
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectWorkingBranch"
+        "404":
+          description: No working branch picked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: UpsertProjectWorkingBranch
+      summary: Set the calling user's working branch for the project
+      description: |
+        Records the branch the calling user is currently writing on. Commits from the Build tab push to this
+        branch. If `createFromBranch` is set and `branchName` does not yet exist on the repository, the
+        branch is created from that base before the binding is saved.
+      tags:
+        - git
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectWorkingBranchUpsert"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectWorkingBranch"
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteProjectWorkingBranch
+      summary: Clear the calling user's working branch for the project
+      description: Idempotent. Removes the user's working branch preference; does not delete the branch on the Git provider.
+      tags:
+        - git
+      responses:
+        "204":
+          description: Cleared
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 security:
   - bearerToken: [ ]
@@ -3465,6 +4836,18 @@ components:
           $ref: '#/components/schemas/BatchEntries'
       required:
         - entries
+    BatchInsertKVRequest:
+      type: object
+      properties:
+        entries:
+          $ref: '#/components/schemas/BatchEntries'
+      required:
+        - entries
+    BatchInsertKVResponse:
+      type: object
+      properties:
+        status:
+          type: string
     Store:
       type: object
       properties:
@@ -3586,6 +4969,198 @@ components:
       required:
         - nextCursor
         - prevCursor
+
+    Workflow:
+      type: object
+      description: A queued workflow.
+      properties:
+        id:
+          type: string
+          description: The unique identifier for the workflow.
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+          x-go-type-skip-optional-pointer: true
+        projectId:
+          type: string
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+          x-go-type-skip-optional-pointer: true
+        environmentId:
+          type: string
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+          x-go-type-skip-optional-pointer: true
+        group:
+          type: string
+        status:
+          type: string
+          description: |
+            One of 'available', 'locked', 'completed', 'failed'.
+        payload:
+          type: string
+          format: byte
+          description: Base64-encoded workflow payload.
+        output:
+          type: string
+          format: byte
+          x-go-type-skip-optional-pointer: true
+          description: Base64-encoded workflow output.
+        attempt:
+          type: integer
+          description: Number of times the workflow has been attempted (zero-indexed).
+        maxAttempts:
+          type: integer
+          default: 5
+        timeout:
+          type: string
+          format: date-time
+          description: The execution timeout for the workflow.
+        createdAt:
+          type: string
+          format: date-time
+        metadata:
+          $ref: '#/components/schemas/WorkflowMetadata'
+      required:
+        - id
+        - projectId
+        - environmentId
+        - group
+        - status
+        - payload
+        - attempt
+        - timeout
+        - createdAt
+        - metadata
+
+    WorkflowMetadata:
+      type: object
+      description: Arbitrary string-keyed metadata for a workflow.
+      x-go-type-skip-optional-pointer: true
+      x-go-type: map[string]string
+      properties:
+        executionId:
+          type: string
+        parentWorkflowId:
+          type: string
+      required:
+        - executionId
+
+    Workflows:
+      type: object
+      properties:
+        workflows:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workflow'
+      required:
+        - workflows
+
+    PeekWorkflowsPagination:
+      type: object
+      description: Cursor pagination metadata for PeekWorkflows.
+      properties:
+        nextCursor:
+          type: string
+        prevCursor:
+          type: string
+        order:
+          type: string
+          enum:
+            - asc
+            - desc
+          description: The sort order applied to this page.
+      required:
+        - nextCursor
+        - prevCursor
+        - order
+
+    PeekWorkflowsResponse:
+      type: object
+      description: A page of workflows returned by Peek.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workflow'
+        pagination:
+          $ref: '#/components/schemas/PeekWorkflowsPagination'
+      required:
+        - data
+        - pagination
+
+    SubmitWorkflow:
+      type: object
+      description: A single workflow being submitted.
+      properties:
+        group:
+          type: string
+        payload:
+          type: string
+          format: byte
+        maxAttempts:
+          type: integer
+        after:
+          type: string
+          description: |
+            Optional Go duration (e.g. 30s, 5m) before the workflow becomes
+            eligible for delivery.
+        metadata:
+          $ref: '#/components/schemas/WorkflowMetadata'
+      required:
+        - group
+        - payload
+        - metadata
+
+    SubmitWorkflowsRequest:
+      type: object
+      properties:
+        workflows:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmitWorkflow'
+      required:
+        - workflows
+
+    CompleteWorkflowRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+          x-go-type-skip-optional-pointer: true
+        status:
+          type: string
+          description: One of 'completed' or 'failed'.
+        output:
+          type: string
+          format: byte
+          x-go-type-skip-optional-pointer: true
+      required:
+        - id
+        - status
+
+    RescheduleWorkflowRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+          x-go-type-skip-optional-pointer: true
+        after:
+          type: string
+          description: |
+            Optional Go duration (e.g. 30s, 5m). When omitted the workflow becomes
+            eligible immediately.
+      required:
+        - id
+
     Activation:
       type: object
       properties:
@@ -3616,7 +5191,7 @@ components:
         $ref: "#/components/schemas/Activation"
     ActivationCreate:
       description: |
-        ActivationCreate is the request payload to activate an environment for End User
+        The request payload to activate an environment for End User
       type: object
       properties:
         userId:
@@ -3658,19 +5233,19 @@ components:
         - connections
 
     ConnectionCreate:
-      description: ConnectionCreate defines the connection to create.
+      description: The connection to create.
       type: object
       properties:
         name:
           type: string
-          description: Name is the name of the Connection.
+          description: The name of the Connection.
         credentials:
           $ref: "#/components/schemas/ConnectionCredentialsCreate"
         baseUrl:
           type: string
           format: uri
           description: |
-            BaseURL is the base URL for the connection. This allows you to override the baseURL for the system being connected to.
+            The base URL for the connection. This allows you to override the baseURL for the system being connected to.
             An example is where the system's baseURL is https://shopifyplaceholder.com and you want to connect to your own shopify
             which is at https://myshopify.com. Everything after the top-level domain will be ignored. If the scheme is missing, then
             https:// will be used.
@@ -3699,7 +5274,7 @@ components:
     LinkConnectionEnvironment:
       type: object
       description: |
-        LinkConnectionEnvironment is the request payload to link an existing connection to an environment.
+        The request payload to link an existing connection to an environment.
       properties:
         connectionTemplateId:
           $ref: "#/components/schemas/TemplateID"
@@ -3708,7 +5283,7 @@ components:
 
     CloneEnvironmentRequest:
       description: |
-        CloneEnvironmentRequest is the request payload to clone an environment within a project.
+        The request payload to clone an environment within a project.
       type: object
       properties:
         oldEnvName:
@@ -3737,7 +5312,7 @@ components:
 
     SyncEnvironmentsRequest:
       description: |
-        SyncEnvironmentsRequest is the request payload to sync the deployment configuration from a source environment
+        The request payload to sync the deployment configuration from a source environment
         to a target environment within a project.
       type: object
       properties:
@@ -3753,7 +5328,7 @@ components:
 
     ChangeEnvironmentExecutionPoolRequest:
       description: |
-        ChangeEnvironmentExecutionPoolRequest is the request payload to update an environment's execution pool.
+        The request payload to update an environment's execution pool.
       type: object
       properties:
         executionPool:
@@ -3763,12 +5338,15 @@ components:
         - executionPool
 
     ProjectCreate:
-      description: ProjectCreate is the request body for creating a new Project.
+      description: The request body for creating a new Project.
       type: object
       properties:
+        environmentName:
+          type: string
+          description: The name of the environment to create. If left empty it will create a 'production' environment.
         name:
           type: string
-          description: Name is the name of the project.
+          description: The name of the project.
         executionPool:
           type: string
           description: The name of the execution pool used to deploy this project. This cannot be changed later.
@@ -3777,87 +5355,84 @@ components:
         - name
 
     ProjectUpdate:
-      description: ProjectUpdate is the request body for updating a Project.
+      description: The request body for updating a Project.
       type: object
       properties:
         name:
           type: string
-          description: Name is the name of the project.
+          description: The name of the project.
         settings:
           $ref: '#/components/schemas/ProjectSettings'
         metadata:
-          $ref: '#/components/schemas/ProjectMetadata'
+          $ref: '#/components/schemas/ProjectMetadataUpdate'
 
     ProjectSettings:
-      description: ProjectSettings hold configuration for the project
+      description: Configuration for the project
       type: object
       properties:
         acceptCodeChangesAutomatically:
           type: boolean
         testingMockWithAI:
           description: |
-            TestingMockWithAI is a flag that indicates whether the project should use AI to mock in the testing environment 
+            Whether the project should use AI to mock in the testing environment 
             or use the connection configured on the project. It defaults to using the configured connections
           type: boolean
         planningChatVersion:
           description: Version tag for the planning chat feature
           type: string
+        codingChatVersion:
+          description: Version tag for the coding chat feature
+          type: string
         chatStoredInDB:
           description: |
-            ChatStoredInDB is a flag that indicates whether chat messages are stored in the database
+            Whether chat messages are stored in the database
             rather than in NATS. Defaults to false (NATS).
           type: boolean
         defaultEnvironment:
           description: |
-            DefaultEnvironment marks one environment as the default in the project.
+            Which environment is the default in the project.
             This is just used to know which one to load in the UI
           type: string
 
     ProjectMetadata:
-      description: ProjectMetadata hold metadata for the project
+      description: Project-level metadata
       type: object
       properties:
-        sentimentHistory:
-          type: array
-          items:
-            $ref: '#/components/schemas/Sentiment'
-          x-go-type-skip-optional-pointer: true
-
-
-    Sentiment:
-      description: Sentiment is the sentiment of a project
-      type: object
-      properties:
-        timestamp:
-          type: string
-          format: date-time
-        sentimentScore:
+        sdkMajorVersion:
           type: integer
-        messageId:
-          type: string
-          x-go-name: MessageID
+          x-go-type: int32
+        documentImported:
+          type: boolean
+          description: Indicates if research has been imported over from the old planning agent.
       required:
-        - timestamp
-        - sentimentScore
-        - messageId
+        - sdkMajorVersion
 
-    SentimentRequest:
-      description: SentimentRequest is the request body for adding a sentiment entry to a project
+    ProjectMetadataUpdate:
+      description: |
+        Patch for a project's metadata. Every field is optional and
+        omitting one leaves its current value untouched.
       type: object
       properties:
-        sentimentScore:
+        sdkMajorVersion:
           type: integer
-          description: The sentiment score for this entry
-        messageId:
-          type: string
-          description: The message ID associated with this sentiment
-          x-go-name: MessageID
+          x-go-type: int32
+        documentImported:
+          type: boolean
+          description: Indicates if research has been imported over from the old planning agent.
+
+    SDKMajorVersionRequest:
+      description: The request body for changing the project's major SDK version.
+      type: object
+      properties:
+        sdkMajorVersion:
+          type: integer
+          x-go-type: int32
       required:
-        - sentimentScore
-        - messageId
+        - sdkMajorVersion
+
 
     ProjectsList:
-      description: ProjectsList is the response body for listing all projects.
+      description: The response body for listing all projects.
       type: object
       properties:
         projects:
@@ -3888,6 +5463,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+        starred:
+          type: boolean
+          description: Whether the project has been starred as a reference project for the organisation.
         environments:
           type: array
           description: |
@@ -3895,27 +5473,24 @@ components:
           items:
             $ref: "#/components/schemas/ProjectEnvironment"
           x-go-type-skip-optional-pointer: true
-        starred:
-          type: boolean
-          description: Whether the organisation has marked this project as a starred reference project.
       required:
         - id
         - name
         - createdAt
         - updatedAt
-        - environments
         - starred
+        - environments
 
     DynamicVariablesSchema:
       description: |
-        DynamicVariablesSchema is the JSON schema for the project's dynamic variables.
+        The JSON schema for the project's dynamic variables.
       type: object
       x-go-type-skip-optional-pointer: true
       x-go-type: json.RawMessage
 
     DynamicVariablesSchemaPatch:
       description: |
-        DynamicVariablesSchemaPatch is the request body for updating the project's dynamic variables.
+        The request body for updating the project's dynamic variables.
       type: object
       properties:
         op:
@@ -3989,7 +5564,7 @@ components:
           $ref: "#/components/schemas/ProjectMetadata"
         starred:
           type: boolean
-          description: Whether the organisation has marked this project as a starred reference project.
+          description: Whether the project has been starred as a reference project for the organisation.
       required:
         - id
         - name
@@ -4176,7 +5751,7 @@ components:
         - content
 
     ProjectVersionDeploy:
-      description: ProjectVersionDeploy is the payload to deploy a specific version of a project.
+      description: The payload to deploy a specific version of a project.
       type: object
 
     ProjectDeployPayload:
@@ -4214,31 +5789,228 @@ components:
         - files
         - labels
 
+    RepoSyncRequest:
+      type: object
+      properties:
+        files:
+          $ref: "#/components/schemas/Files"
+        deletedFiles:
+          type: array
+          description: Source file paths to delete from the repository commit.
+          x-go-type-skip-optional-pointer: true
+          items:
+            type: string
+        sourceBranch:
+          type: string
+          description: Source branch where file changes will be committed.
+          x-go-type-skip-optional-pointer: true
+        targetBranch:
+          type: string
+          description: Target branch for optional merge request creation.
+          x-go-type-skip-optional-pointer: true
+        commitMessage:
+          type: string
+          description: Commit message to use for the repository commit.
+          x-go-type-skip-optional-pointer: true
+        createMergeRequest:
+          type: boolean
+          description: When true, create a merge request after commit.
+          x-go-type-skip-optional-pointer: true
+        mergeRequestTitle:
+          type: string
+          description: Optional merge request title.
+          x-go-type-skip-optional-pointer: true
+        mergeRequestDescription:
+          type: string
+          description: Optional merge request description.
+          x-go-type-skip-optional-pointer: true
+      required:
+        - files
+
+    RepoSyncResult:
+      type: object
+      properties:
+        repositoryPath:
+          type: string
+        sourceBranch:
+          type: string
+        targetBranch:
+          type: string
+        commitSha:
+          type: string
+          x-go-name: CommitSHA
+        mergeRequestCreated:
+          type: boolean
+        mergeRequestIid:
+          type: integer
+          x-go-name: MergeRequestIID
+        mergeRequestWebUrl:
+          type: string
+      required:
+        - repositoryPath
+        - sourceBranch
+        - targetBranch
+        - commitSha
+        - mergeRequestCreated
+
+    RepoPullRequest:
+      type: object
+      properties:
+        branch:
+          type: string
+          description: Git branch or ref to pull project source files from. Defaults to the project git binding current branch.
+          x-go-type-skip-optional-pointer: true
+
+    RepoPullResult:
+      type: object
+      properties:
+        repositoryPath:
+          type: string
+        branch:
+          type: string
+        fileCount:
+          type: integer
+        commitSha:
+          type: string
+          x-go-name: CommitSHA
+      required:
+        - repositoryPath
+        - branch
+        - fileCount
+        - commitSha
+
+    RepoFile:
+      type: object
+      properties:
+        path:
+          type: string
+        type:
+          type: string
+      required:
+        - path
+        - type
+
+    RepoFileListResponse:
+      type: object
+      properties:
+        repositoryPath:
+          type: string
+        ref:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/RepoFile"
+      required:
+        - repositoryPath
+        - ref
+        - files
+
+    RepoMergeRequestCreateRequest:
+      type: object
+      properties:
+        sourceBranch:
+          type: string
+        targetBranch:
+          type: string
+          x-go-type-skip-optional-pointer: true
+        title:
+          type: string
+        description:
+          type: string
+          x-go-type-skip-optional-pointer: true
+        removeSourceBranch:
+          type: boolean
+          x-go-type-skip-optional-pointer: true
+      required:
+        - sourceBranch
+        - title
+
+    RepoMergeRequestResult:
+      type: object
+      properties:
+        repositoryPath:
+          type: string
+        sourceBranch:
+          type: string
+        targetBranch:
+          type: string
+        iid:
+          type: integer
+          x-go-name: IID
+        webUrl:
+          type: string
+      required:
+        - repositoryPath
+        - sourceBranch
+        - targetBranch
+        - iid
+        - webUrl
+
     ErrorField:
-      description: ErrorField denotes a field which has an error.
+      description: A field which has an error.
       type: object
       properties:
         field:
           type: string
           description: |
-            Field is the name of the field which has an error, this may be a path to a nested field, including array
+            The name of the field which has an error, this may be a path to a nested field, including array
             elements. The format of this field is of the form: "field1.field2[0].field3"
         message:
           type: string
-          description: Message is the error message for this specific field.
+          description: The error message for this specific field.
       required:
         - field
         - message
+
+    QuotaDenialReason:
+      type: string
+      description: |
+        Stable reason code when a quota check denies the request. Emitted on `Error.reason`
+        for quota-related 403 responses.
+      enum:
+        - QUOTA_LIMIT_EXCEEDED
+        - QUOTA_ENTITLEMENT_DISABLED
+        - QUOTA_GRANT_EXPIRED
+        - QUOTA_DISABLED
+
+    QuotaErrorContext:
+      type: object
+      description: Structured context when a quota check denies the request.
+      properties:
+        quotaKey:
+          type: string
+          description: Catalog key for the quota that denied the request.
+        displayName:
+          type: string
+          description: Human-readable quota name from the catalog.
+        usage:
+          type: number
+          x-go-type: float64
+          description: Amount of usage that caused the denial.
+        limit:
+          type: number
+          x-go-type: float64
+          description: Resolved upper limit for the quota.
+        gatingEntitlement:
+          type: string
+          description: Entitlements catalog key that gates this quota; empty when always active.
+          x-go-type-skip-optional-pointer: true
+      required:
+        - quotaKey
+        - displayName
+        - usage
+        - limit
 
     Error:
       type: object
       properties:
         code:
           type: string
-          description: Code is a machine-readable error code.
+          description: The HTTP status code rendered as a string. For a stable machine-readable identifier, prefer `reason`.
         message:
           type: string
-          description: Message is a human-readable error message.
+          description: A human-readable error message.
         fields:
           type: array
           items:
@@ -4247,6 +6019,34 @@ components:
         details:
           type: string
           x-go-type-skip-optional-pointer: true
+        reason:
+          type: string
+          description: |
+            A stable machine-readable identifier for the error (for example `FEATURE_UNKNOWN`
+            or a `QuotaDenialReason` value such as `QUOTA_LIMIT_EXCEEDED`).
+            Clients should branch on this rather than parsing `message`. Mirrors `google.rpc.ErrorInfo.reason`
+            when the error crossed a gRPC boundary.
+          x-go-type-skip-optional-pointer: true
+        domain:
+          type: string
+          description: |
+            Identifies which service owns the `reason` code when multiple services may emit values with
+            the same identifier (for example `entitlements.platform-api.versori.dev`). Mirrors
+            `google.rpc.ErrorInfo.domain`.
+          x-go-type-skip-optional-pointer: true
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            Structured context about the error (for example the offending feature key).
+            Mirrors `google.rpc.ErrorInfo.metadata`.
+          x-go-type-skip-optional-pointer: true
+        quota:
+          $ref: "#/components/schemas/QuotaErrorContext"
+          description: |
+            Present when `reason` is a `QuotaDenialReason`; carries the quota key, usage,
+            and limit that caused the denial.
       required:
         - code
         - message
@@ -4361,12 +6161,12 @@ components:
 
     ConnectionUpdate:
       description: |
-        ConnectionUpdate is the request payload to update an existing connection.
+        The request payload to update an existing connection.
       type: object
       properties:
         name:
           type: string
-          description: Name is the name of the Connection. This must be unique within the owning Connector.
+          description: The name of the Connection. This must be unique within the owning Connector.
         credentials:
           $ref: "#/components/schemas/ConnectionCredentials"
         baseUrl:
@@ -4388,7 +6188,7 @@ components:
 
     Connection:
       description: |
-        Connection defines the credentials for the owning Connector, and additional variables
+        The credentials for the owning Connector, and additional variables
         which can be used to customize the Connector in a particular connection.
       type: object
       properties:
@@ -4396,7 +6196,7 @@ components:
           type: string
           format: ulid
           description: |
-            ID is the unique identifier of the Connection. Typically this is only used internally and most (if not all)
+            The unique identifier of the Connection. Typically this is only used internally and most (if not all)
             public-facing APIs will use the `name` in combination with the Connector's `id` instead.
           x-go-name: ID
           x-go-type: ulid.ULID
@@ -4404,7 +6204,7 @@ components:
             path: github.com/versori/cli/pkg/ulid
         name:
           type: string
-          description: Name is the name of the Connection. This must be unique within the owning Connector.
+          description: The name of the Connection. This must be unique within the owning Connector.
         credentials:
           $ref: "#/components/schemas/ConnectionCredentials"
         baseUrl:
@@ -4422,11 +6222,11 @@ components:
         createdAt:
           type: string
           format: date-time
-          description: CreatedAt is the time the Connection was created.
+          description: The time the Connection was created.
         updatedAt:
           type: string
           format: date-time
-          description: UpdatedAt is the time the Connection was last updated.
+          description: The time the Connection was last updated.
         systemId:
           description: ID of the system to add the project environment.
           type: string
@@ -4447,7 +6247,7 @@ components:
 
     ConnectionCredentials:
       description: |
-        ConnectionCredentials defines the credentials for the owning Connector. If multiple
+        The credentials for the owning Connector. If multiple
         credentials are defined for each type, they are applied to the request in the order they are defined. This is to
         enable Connectors which require both a user session token and an API key to be provided in the request.
       type: array
@@ -4456,7 +6256,7 @@ components:
       x-go-type-skip-optional-pointer: true
 
     ConnectionPage:
-      description: ConnectionPage defines a page of Connection summaries.
+      description: A page of Connection summaries.
       type: object
       allOf:
         - $ref: "#/components/schemas/PageInfo"
@@ -4471,7 +6271,7 @@ components:
 
     ConnectionCredential:
       description: >-
-        ConnectionCredential contains the a Credential and the AuthSchemeConfig to define how the Credential should be
+        A Credential and the AuthSchemeConfig to define how the Credential should be
         used against the Connection's Connector.
       type: object
       properties:
@@ -4496,7 +6296,7 @@ components:
       type: object
       properties:
         id:
-          description: ID is the unique identifier of the Credential.
+          description: The unique identifier of the Credential.
           type: string
           format: ulid
           x-go-name: ID
@@ -4504,7 +6304,7 @@ components:
           x-go-type-import:
             path: github.com/versori/cli/pkg/ulid
         organisationId:
-          description: OrganisationID is the unique identifier of the Organisation which owns the Credential.
+          description: The unique identifier of the Organisation which owns the Credential.
           type: string
           format: ulid
           x-go-name: OrganisationID
@@ -4515,10 +6315,10 @@ components:
           $ref: "#/components/schemas/CredentialType"
         name:
           type: string
-          description: Name is the name of the Credential.
+          description: The name of the Credential.
         errors:
           description: |
-            Errors is a list of errors which occurred when attempting to validate the credential. This field may be
+            A list of errors which occurred when attempting to validate the credential. This field may be
             undefined, which implies that validation has not occurred and the consumer cannot assume whether this
             Credential is valid or not. An empty array indicates that the Credential is valid.
           type: array
@@ -4531,7 +6331,7 @@ components:
           type: string
           format: date-time
           description: |
-            ExpiresAt denotes the time this credential should be automatically deleted. External systems can subscribe
+            The time this credential should be automatically deleted. External systems can subscribe
             to deletion events and if the reason is "expired", can trigger the correct notifications to interested
             parties (such as un-publishing jobs which rely on the credential and emailing the owner to rectify it).
       required:
@@ -4566,7 +6366,7 @@ components:
 
     CredentialType:
       description: |
-        CredentialType denotes the type of the credential which determines what the Credential's `data` property will
+        The type of the credential which determines what the Credential's `data` property will
         contain.
 
         - none: No credential is required to authenticate with the Connector.
@@ -4598,28 +6398,28 @@ components:
     CredentialDataNone:
       title: None
       description: |
-        CredentialDataNone contains no data as no credential is required to authenticate with the Connector. It is used
+        Empty credential payload used when no credential is required to authenticate with the Connector. It is used
         purely as a placeholder to implement a consistent interface across all CredentialType/AuthSchemeTypes.
       type: object
       additionalProperties: false
     CredentialDataString:
       title: String
       description: |
-        CredentialDataString contains a string value and nothing else and is commonly used for API keys. This value
+        A string value and nothing else and is commonly used for API keys. This value
         will be redacted when returned in a response.
       type: object
       properties:
         value:
           type: string
           description: |
-            Value is a UTF-8 string containing the credential data. When read from the API this field will be redacted.
+            A UTF-8 string containing the credential data. When read from the API this field will be redacted.
       required:
         - value
 
     CredentialJWTBearer:
       title: JWT
       description: |
-        CredentialJWTBearer contains the username and password required to authenticate with the Connector. The
+        The username and password required to authenticate with the Connector. The
         `secret` property will be redacted when returned in a response.
       type: object
       properties:
@@ -4635,10 +6435,10 @@ components:
         secret:
           type: string
           description: |
-            Secret is the base64 encoded secret used to sign new JWTs.
+            The base64 encoded secret used to sign new JWTs.
         payload:
           description: |
-            Payload is stringified JSON object containing the default set of claims to include in the JWT payload.
+            Stringified JSON object containing the default set of claims to include in the JWT payload.
             Issued JWTs may contain additional claims and may overwrite ones defined here, such as `exp` and `iat`.
           type: string
         expiresIn:
@@ -4653,7 +6453,7 @@ components:
             - 1m30s
         authorizationHeaderPrefix:
           description: |
-            AuthorizationHeaderPrefix is the prefix to use when setting the Authorization header, for example,
+            The prefix to use when setting the Authorization header, for example,
             "Bearer" or "JWT".
           type: string
       required:
@@ -4665,17 +6465,17 @@ components:
     CredentialDataBasicAuth:
       title: Username/Password
       description: |
-        CredentialDataBasicAuth contains the username and password required to authenticate with the Connector. The
+        The username and password required to authenticate with the Connector. The
         `password` property will be redacted when returned in a response.
       type: object
       properties:
         username:
           type: string
-          description: Username is the username used to authenticate with the Connector.
+          description: The username used to authenticate with the Connector.
         password:
           type: string
           description: |
-            Password is the password used to authenticate with the Connector. Will be redacted when returned in a
+            The password used to authenticate with the Connector. Will be redacted when returned in a
             response.
       required:
         - username
@@ -4683,18 +6483,18 @@ components:
     CredentialDataCertificate:
       title: Certificate
       description: |
-        CredentialDataCertificate contains the Certificate, Certificate key and CA(Certificate authority).
+        The Certificate, Certificate key and CA(Certificate authority).
       type: object
       properties:
         certificate:
           type: string
-          description: Certificate is the certificate that will be send to the connection.
+          description: The certificate that will be send to the connection.
         key:
           type: string
-          description: Key is the accompanying key for the certificate.
+          description: The accompanying key for the certificate.
         ca:
           type: string
-          description: CA is the Certificate Authority to verify the server certificates against.
+          description: The Certificate Authority to verify the server certificates against.
       required:
         - certificate
         - key
@@ -4702,25 +6502,32 @@ components:
     CredentialDataOAuth2Password:
       title: OAuth 2.0 Password
       description: |
-        CredentialDataOAuth2Password contains the username and password of a Resource Owner within an OAuth 2.0
+        The username and password of a Resource Owner within an OAuth 2.0
         application. The `password` property will be redacted when returned in a response.
       type: object
       properties:
         username:
           type: string
-          description: Username is the username used to authenticate with the Connector.
+          description: The username used to authenticate with the Connector.
         password:
           type: string
           description: |
-            Password is the password used to authenticate with the Connector. Will be redacted when returned in a
+            The password used to authenticate with the Connector. Will be redacted when returned in a
             response.
+        additionalParams:
+          description: |
+            A URL-encoded query string which can be used to pass additional
+            parameters to the OAuth 2.0 token endpoint. The placement of these parameters is
+            controlled by the AdditionalParamConfigs on the associated OAuth 2.0 client credential.
+          type: string
+          x-go-type-skip-optional-pointer: true
       required:
         - username
         - password
     CredentialDataOAuth2Client:
       title: OAuth 2.0 Client
       description: |
-        CredentialDataOAuth2Client contains the OAuth2 client credentials required to either issue an access token from
+        The OAuth2 client credentials required to either issue an access token from
         a refresh_token, or via the `client_credentials` and `authorization_code` grant types. The `clientSecret` property will be redacted when
         returned in a response.
       type: object
@@ -4728,38 +6535,48 @@ components:
         clientId:
           type: string
           description: |
-            ClientID is the OAuth2 client ID used to authenticate with the Connector.
+            The OAuth2 client ID used to authenticate with the Connector.
           x-go-name: ClientID
         clientSecret:
           type: string
           description: |
-            ClientSecret is the OAuth2 client secret used to authenticate with the Connector. Will be redacted when
+            The OAuth2 client secret used to authenticate with the Connector. Will be redacted when
             returned in a response.
         tokenUrl:
           type: string
           format: uri
-          description: TokenURL is the URL which the application will use to issue an access token.
+          description: The URL which the application will use to issue an access token.
           x-go-name: TokenURL
         scopes:
           type: array
           items:
             type: string
           description: |
-            Scopes is a list of scopes which should be requested when issuing an access token. This is only required if
+            A list of scopes which should be requested when issuing an access token. This is only required if
             this credential is being used on a `client_credentials` grant type, for `authorization_code` grant types the
             requested scopes come from the `CredentialDataOAuth2Token` credential.
           x-go-type-skip-optional-pointer: true
         additionalParams:
           description: |
-            AdditionalParams is a URL-encoded query string which can be used to pass additional
+            A URL-encoded query string which can be used to pass additional
             parameters to the OAuth 2.0 token endpoint. These parameters are attached to the body
             in the formatted as the `application/x-www-form-urlencoded` content-type.
           type: string
           x-go-type-skip-optional-pointer: true
+        additionalParamConfigs:
+          description: |
+            A list of configurations that control how additional
+            parameters are placed in requests to the OAuth 2.0 token endpoint. Each config
+            defines where a parameter should be sent (body, header, query) and where its value
+            comes from.
+          type: array
+          items:
+            $ref: "#/components/schemas/OAuth2ParameterConfig"
+          x-go-type-skip-optional-pointer: true
         mTLSEnabled:
           type: boolean
           description: |
-            MTLSEnabled is a boolean flag which determines whether the client should use mutual TLS authentication when
+            A boolean flag which determines whether the client should use mutual TLS authentication when
             communicating with the OAuth2 provider. If enabled, the `mTLSCredentialId` field must be set, or it must be
             created via the `CreateConnection` endpoint with an associated mTLS credential defined beforehand, in which
             case the mTLSCredentialID field will be populated upon saving by the API.
@@ -4767,7 +6584,7 @@ components:
         mTLSCredentialId:
           type: string
           description: |
-            MTLSCredentialID is an optional reference to another credential being created.
+            An optional reference to another credential being created.
             If set the certificate credential will be used when making a request to the tokenUrl.
           x-go-name: MTLSCredentialID
           x-go-type-skip-optional-pointer: true
@@ -4778,7 +6595,7 @@ components:
     CredentialDataOAuth2Token:
       title: OAuth 2.0 Token
       description: |
-        CredentialDataOAuth2Token is primarily used to store the refresh_token for an user who has authorized an OAuth2
+        Primarily used to store the refresh_token for an user who has authorized an OAuth2
         Application to access their data. However, this information is not exposed publicly and the only data visible
         via the API are the `scopes` which the user has granted consent for. This can be used to determine whether
         the user should be prompted to re-authorize the application with additional scopes in the event they choose to
@@ -4789,24 +6606,24 @@ components:
           type: array
           items:
             type: string
-          description: Scopes is a list of scopes which the user has granted consent for.
+          description: A list of scopes which the user has granted consent for.
         accessToken:
           type: string
           description: |
-            AccessToken is the OAuth2 access token which can be used to authenticate with the Connector. This
+            The OAuth2 access token which can be used to authenticate with the Connector. This
             information is redacted when read from the API.
           x-go-type-skip-optional-pointer: true
         tokenType:
           type: string
           description: |
-            TokenType is the type of token which is being issued. Defaults to "Bearer" if not set.
+            The type of token which is being issued. Defaults to "Bearer" if not set.
           default: Bearer
           x-go-type-skip-optional-pointer: true
         expiresAt:
           type: string
           format: date-time
           description: |
-            ExpiresAt is the time at which the access token will expire. If not defined, the accessToken will be
+            The time at which the access token will expire. If not defined, the accessToken will be
             reused until a 401 response is received from the Connector, at which point the token should be refreshed
             with the provided `refreshToken`. Ideally this should be provided so that erroneous failures can be
             avoided.
@@ -4814,7 +6631,7 @@ components:
         refreshToken:
           type: string
           description: |
-            RefreshToken is the OAuth2 refresh token which can be used to issue new access tokens. This information is
+            The OAuth2 refresh token which can be used to issue new access tokens. This information is
             redacted when read from the API.
 
             This is a required field as it is used to refresh the access token when it expires. If users are providing
@@ -4826,7 +6643,7 @@ components:
     CredentialDataOAuth2Code:
       title: OAuth 2.0 Code
       description: |
-        CredentialDataOAuth2Code is used to exchange an authorization code for an access token and
+        Used to exchange an authorization code for an access token and
         is denoted by the `oauth2-code` type.
         This is only used when creating or updating an OAuth 2.0 connection using the
         `authorization_code` grant type. Retrieving this credential will return a payload of
@@ -4835,21 +6652,21 @@ components:
       properties:
         code:
           description: |
-            Code is the authorization code which will be exchanged for an access token.
+            The authorization code which will be exchanged for an access token.
           type: string
         state:
           description: |
-            State is the state value which is propagated through the OAuth2 flow.
+            The state value which is propagated through the OAuth2 flow.
           type: string
         redirectUrl:
           description: |
-            RedirectURL is the URL which the user will be redirected to after authorising the application.
+            The URL which the user will be redirected to after authorising the application.
           type: string
           format: uri
           x-go-name: RedirectURL
         additionalParams:
           description: |
-            AdditionalParams is a URL-encoded query string which can be used to pass additional
+            A URL-encoded query string which can be used to pass additional
             parameters to the OAuth 2.0 token endpoint. These parameters are attached to the body
             in the formatted as the `application/x-www-form-urlencoded` content-type.
           type: string
@@ -4903,7 +6720,7 @@ components:
     CredentialDataBinary:
       title: Binary
       description: |
-        CredentialDataBinary is commonly used to store non-string data such as binary files or encryption keys. This
+        Commonly used to store non-string data such as binary files or encryption keys. This
         value will be redacted when returned in a response.
       type: object
       properties:
@@ -4948,7 +6765,7 @@ components:
     AuthSchemeConfigAPIKey:
       title: API Key
       description: |
-        AuthSchemeConfigAPIKey defines how a Connector uses an API key credential to authenticate with the system.
+        How a Connector uses an API key credential to authenticate with the system.
       type: object
       allOf:
         - $ref: "#/components/schemas/AuthSchemeConfigBase"
@@ -4956,7 +6773,7 @@ components:
           properties:
             name:
               type: string
-              description: Name is the query parameter/header/cookie name which will be used to send the API key.
+              description: The query parameter/header/cookie name which will be used to send the API key.
             in:
               $ref: "#/components/schemas/AuthSchemeConfigAPIKeyIn"
           required:
@@ -4965,7 +6782,7 @@ components:
 
     AuthSchemeConfigAPIKeyIn:
       description: |
-        AuthSchemeConfigAPIKeyIn defines the location of the API key in the request.
+        The location of the API key in the request.
       type: string
       enum:
         - query
@@ -4974,7 +6791,7 @@ components:
 
     AuthSchemeType:
       description: |
-        Type is a unique identifier of the AuthScheme, this is a kebab-case formatted string, see
+        Unique kebab-case identifier of the AuthScheme, see
         enum values for possible options.
       type: string
       enum:
@@ -4989,18 +6806,18 @@ components:
         - secret
     OAuth2Scope:
       description: |
-        OAuth2Scope represents a single scope which can be requested by an OAuth2 application.
+        A single scope which can be requested by an OAuth2 application.
       type: object
       properties:
         name:
           type: string
           description: |
-            Name is the name of the scope as determined by the application to which this Connector
+            The name of the scope as determined by the application to which this Connector
             is connecting to.
         description:
           type: string
           description: |
-            Description describes the scope in human-friendly terminology. This text may be
+            Human-friendly explanation of the scope. This text may be
             displayed to users via a help tooltip or similar.
           x-go-type-skip-optional-pointer: true
       required:
@@ -5012,17 +6829,17 @@ components:
           type: string
           format: ulid
           description: |
-            ID is the unique identifier of the AuthSchemeConfig, this is generated by the client and
+            The unique identifier of the AuthSchemeConfig, this is generated by the client and
             only requires to be unique amongst the elements of the array in which is it contained.
           x-go-name: ID
         description:
           description: |
-            Description enables users to distinguish multiple configurations which use the same
+            Helps users distinguish multiple configurations which use the same
             schemeType.
           type: string
         validationMessages:
           description: |
-            ValidationMessages is a list of messages which are generated when the AuthSchemeConfig
+            A list of messages which are generated when the AuthSchemeConfig
             is validated. This is typically used to provide feedback to the user when they are
             creating or updating the AuthSchemeConfig.
 
@@ -5043,7 +6860,7 @@ components:
     AuthSchemeConfigOAuth2GrantAuthorizationCode:
       title: authorization_code
       description: |
-        AuthSchemeConfigOAuth2GrantAuthorizationCode contains grant-specific configuration for the
+        Grant-specific configuration for the
         `authorization_code` grant type.
 
         How the API manages changes to this configuration is as follows:
@@ -5057,7 +6874,7 @@ components:
       properties:
         credentialId:
           description: |
-            CredentialID is the unique identifier of the Credential which contains the client ID and
+            The unique identifier of the Credential which contains the client ID and
             client secret to be used as part of the `password` flow.
           type: string
           format: ulid
@@ -5068,7 +6885,7 @@ components:
           x-go-type-skip-optional-pointer: true
         organisationId:
           description: |
-            OrganisationID is the unique identifier of the Organisation that owns the Credential.
+            The unique identifier of the Organisation that owns the Credential.
             This can be different to the Connector's OrganisationID since some may be imported from
             Versori's public library.
           type: string
@@ -5080,13 +6897,13 @@ components:
           x-go-type-skip-optional-pointer: true
         clientId:
           description: |
-            ClientID is the OAuth 2.0 client's identifier. This is not a sensitive value and may be
+            The OAuth 2.0 client's identifier. This is not a sensitive value and may be
             presented to the user in plaintext.
           type: string
           x-go-name: ClientID
         clientSecret:
           description: |
-            ClientSecret is the OAuth 2.0 client's secret. This is a sensitive value and will not be
+            The OAuth 2.0 client's secret. This is a sensitive value and will not be
             displayed to the user.
           type: string
       required:
@@ -5097,7 +6914,7 @@ components:
     AuthSchemeConfigOAuth2GrantPassword:
       title: password
       description: |
-        AuthSchemeConfigOAuth2GrantPassword contains grant-specific configuration for the `password`
+        Grant-specific configuration for the `password`
         grant type.
 
         How the API manages changes to this configuration is as follows:
@@ -5111,7 +6928,7 @@ components:
       properties:
         credentialId:
           description: |
-            CredentialID is the unique identifier of the Credential which contains the client ID and
+            The unique identifier of the Credential which contains the client ID and
             client secret to be used as part of the `password` flow.
           type: string
           format: ulid
@@ -5122,7 +6939,7 @@ components:
           x-go-type-skip-optional-pointer: true
         organisationId:
           description: |
-            OrganisationID is the unique identifier of the Organisation that owns the Credential. This can be different
+            The unique identifier of the Organisation that owns the Credential. This can be different
             to the Connector's OrganisationID since some may be imported from Versori's public library.
           type: string
           format: ulid
@@ -5133,13 +6950,13 @@ components:
           x-go-type-skip-optional-pointer: true
         clientId:
           description: |
-            ClientID is the OAuth 2.0 client's identifier. This is not a sensitive value and may be presented to the
+            The OAuth 2.0 client's identifier. This is not a sensitive value and may be presented to the
             user in plaintext.
           type: string
           x-go-name: ClientID
         clientSecret:
           description: |
-            ClientSecret is the OAuth 2.0 client's secret. This is a sensitive value and will not be displayed to the
+            The OAuth 2.0 client's secret. This is a sensitive value and will not be displayed to the
             user. It may be populated when updating the Credential.
           type: string
       required:
@@ -5161,7 +6978,7 @@ components:
     AuthSchemeConfigNone:
       title: None
       description: |
-        AuthSchemeConfigNone is a placeholder object with the schemeType set to `none`. There is no other configuration
+        A placeholder object with the schemeType set to `none`. There is no other configuration
         required.
       type: object
       allOf:
@@ -5170,7 +6987,7 @@ components:
     AuthSchemeConfigBasicAuth:
       title: Basic Auth
       description: |
-        AuthSchemeConfigBasicAuth is a placeholder object with the schemeType set to `basic-auth`. There is no other
+        A placeholder object with the schemeType set to `basic-auth`. There is no other
         configuration required.
       type: object
       allOf:
@@ -5179,7 +6996,7 @@ components:
     AuthSchemeConfigCertificate:
       title: TLS Certificate
       description: |
-        AuthSchemeConfigCertificate is a placeholder object with the schemeType set to `certificate`.
+        A placeholder object with the schemeType set to `certificate`.
         There is no other config required
       type: object
       allOf:
@@ -5188,7 +7005,7 @@ components:
     AuthSchemeConfigOAuth2:
       title: OAuth 2.0
       description: |
-        AuthSchemeConfigOAuth2 defines how a Connector uses an OAuth2 credential to authenticate
+        How a Connector uses an OAuth2 credential to authenticate
         with the system. This is to be used for all OAuth 2.0 flows which require a client ID and
         client secret as part of the Connector's configuration. Connectors which use the
         `client_credentials` grant type, where the user provides the Client ID  and Client Secret at
@@ -5203,7 +7020,7 @@ components:
               type: string
               format: uri
               description: |
-                AuthorizeURL is the URL which the user will be redirected to in order to authorize
+                The URL which the user will be redirected to in order to authorize
                 the application.
               x-go-name: AuthorizeURL
               x-go-type-skip-optional-pointer: true
@@ -5211,18 +7028,25 @@ components:
               type: string
               format: uri
               description: |
-                TokenURL is the URL which the application will use to issue an access token.
+                The URL which the application will use to issue an access token.
               x-go-name: TokenURL
+            refreshUrl:
+              type: string
+              format: uri
+              description: |
+                The URL which the application will use to refresh an access token. If omitted, TokenURL is used.
+              x-go-name: RefreshURL
+              x-go-type-skip-optional-pointer: true
             scopes:
               description: |
-                Scopes is the list of all OAuth2 scopes which the application supports. The user
+                The list of all OAuth2 scopes which the application supports. The user
                 will be allowed to choose which scopes to request when configuring the Connection.
               type: array
               items:
                 $ref: "#/components/schemas/OAuth2Scope"
             defaultScopes:
               description: |
-                DefaultScopes is the list of scopes which will be requested by default when the user
+                The list of scopes which will be requested by default when the user
                 connects the Connector. This is useful for Connectors which require a specific set
                 of scopes to function correctly.
               type: array
@@ -5230,7 +7054,7 @@ components:
                 type: string
             additionalAuthorizeParams:
               description: |
-                AdditionalAuthorizeParams is a URL-encoded query string which should be attached to
+                A URL-encoded query string which should be attached to
                 the AuthorizeURL when the user is redirected to the OAuth 2.0 authorization
                 endpoint.
 
@@ -5240,15 +7064,27 @@ components:
               x-go-type-skip-optional-pointer: true
             additionalTokenParams:
               description: |
-                AdditionalTokenParams is a URL-encoded string following the
+                A URL-encoded string following the
                 `application/x-www-form-urlencoded` mime-type, which can be used to pass additional
                 parameters to the OAuth 2.0 token endpoint within the request body.
               type: string
               x-go-type-skip-optional-pointer: true
+            additionalTokenParamConfigs:
+              description: |
+                A list of configurations that control how additional
+                parameters (defined in additionalTokenParams) are placed in requests to the OAuth
+                2.0 token endpoint. Each config defines where a parameter should be sent (body,
+                header, query) and where its value comes from. If a parameter is present in
+                additionalTokenParams but has no matching config, the default behaviour is
+                grant-type dependent.
+              type: array
+              items:
+                $ref: "#/components/schemas/OAuth2ParameterConfig"
+              x-go-type-skip-optional-pointer: true
             mtlsEnabled:
               type: boolean
               description: |
-                MTLSEnabled is a flag which determines whether the Connector should use Mutual TLS
+                A flag which determines whether the Connector should use Mutual TLS
                 (mTLS) to authenticate with the OAuth 2.0 token endpoint. This is useful for
                 Connectors which require a higher level of security.
               x-go-name: MTLSEnabled
@@ -5256,7 +7092,7 @@ components:
             mtlsCredentialId:
               type: string
               description: |
-                MTLSCredentialID is the unique identifier of the Credential which contains the
+                The unique identifier of the Credential which contains the
                 client certificate and private key to be used as part of the mTLS connection.
 
                 This may be unset when creating a connection, in which case if `mtlsEnabled` is
@@ -5371,8 +7207,51 @@ components:
         - modifiable
         - parameterName
 
+    OAuth2ParameterConfig:
+      description: |
+        How an additional parameter should be handled when making
+        requests to the OAuth 2.0 token endpoint. This controls where the parameter is placed
+        (body, header, query) and where its value comes from.
+      type: object
+      properties:
+        parameterName:
+          type: string
+          description: Key of the additional parameter to insert.
+        targetName:
+          type: string
+          description: |
+            Override name for the parameter in the token endpoint request. If not set, the
+            parameter will be sent using the same name as parameterName.
+          x-go-type-skip-optional-pointer: true
+        location:
+          type: string
+          description: Defines where this parameter should be placed in the request.
+          enum:
+            - LOCATION_IGNORE
+            - LOCATION_BODY
+            - LOCATION_HEADER
+            - LOCATION_QUERY
+        from:
+          type: string
+          description: Defines where the value of this parameter should be taken from.
+          enum:
+            - FROM_ADDITIONAL_PARAMS
+            - FROM_RANDOM_UUID
+        grantTypes:
+          type: array
+          description: |
+            List of grant types for which this parameter should be included. If empty, the
+            parameter will be handled according to this configuration for all grant types.
+          items:
+            type: string
+          x-go-type-skip-optional-pointer: true
+      required:
+        - parameterName
+        - location
+        - from
+
     AuthSchemeConfigHMACIn:
-      description: AuthSchemeConfigHMACIn defines where the signature should be set on requests.
+      description: Where the signature should be set on requests.
       type: string
       enum:
         - query
@@ -5381,7 +7260,7 @@ components:
     AuthSchemeConfigHMAC:
       title: HMAC
       description: |
-        AuthSchemeConfigHMAC defines how a Connector uses an HMAC credential to authenticate with the system.
+        How a Connector uses an HMAC credential to authenticate with the system.
 
         This may be used on outbound requests to sign the request body, however it is more commonly used on inbound
         requests (i.e. from Webhook Triggers) to verify the sender of the request is allowed to invoke the Trigger.
@@ -5392,7 +7271,7 @@ components:
           properties:
             name:
               type: string
-              description: Name is the query parameter/header/cookie name which will be used to send the signature.
+              description: The query parameter/header/cookie name which will be used to send the signature.
             in:
               $ref: "#/components/schemas/AuthSchemeConfigHMACIn"
             algorithm:
@@ -5415,7 +7294,7 @@ components:
                   - url
             encoding:
               description: |
-                Encoding defines how the HMAC signature was encoded. This can be one of `hex`, `base64` or `base64url`.
+                How the HMAC signature was encoded. This can be one of `hex`, `base64` or `base64url`.
               type: string
               enum:
                 - hex
@@ -5430,12 +7309,12 @@ components:
 
     Message:
       description: |
-        Message is a message to be displayed to the user to indicate some information about the
+        A message to be displayed to the user to indicate some information about the
         preceding request.
       type: object
       properties:
         text:
-          description: Text contains the text of the message.
+          description: The text of the message.
           type: string
         severity:
           $ref: "#/components/schemas/MessageSeverity"
@@ -5459,7 +7338,7 @@ components:
 
     InitialiseOAuth2ConnectionRequest:
       description: |
-        InitialiseOAuth2ConnectionRequest is the payload to initialise an OAuth 2.0 connection.
+        The payload to initialise an OAuth 2.0 connection.
       type: object
       properties:
         credential:
@@ -5467,7 +7346,7 @@ components:
           properties:
             id:
               description: |
-                ID is the unique identifier of the credential which is being used to
+                The unique identifier of the credential which is being used to
                 initialise the connection. This is used to load the client_secret when the authorisation
                 code is exchanged for an access token.
               type: string
@@ -5478,7 +7357,7 @@ components:
                 path: github.com/versori/cli/pkg/ulid
             organisationId:
               description: |
-                OrganisationID is the unique identifier of the organisation which the credential is
+                The unique identifier of the organisation which the credential is
                 associated with. This is used to ensure that the credential is only used to initialise
                 connections for the organisation which owns the credential.
               type: string
@@ -5492,26 +7371,26 @@ components:
             - organisationId
         authorizeUrl:
           description: |
-            AuthorizeURL is the URL which the user will be redirected to in order to authorize
+            The URL which the user will be redirected to in order to authorize
             the application.
           type: string
           format: uri
           x-go-name: AuthorizeURL
         redirectUrl:
           description: |
-            RedirectURL is the URL which the user will be redirected to after authorising the application.
+            The URL which the user will be redirected to after authorising the application.
           type: string
           format: uri
           x-go-name: RedirectURL
         clientId:
           description: |
-            ClientID is the OAuth 2.0 client ID which is used to identify the application to the
+            The OAuth 2.0 client ID which is used to identify the application to the
             OAuth 2.0 provider.
           type: string
           x-go-name: ClientID
         scopes:
           description: |
-            Scopes is a list of OAuth 2.0 scopes which the application is requesting access to.
+            A list of OAuth 2.0 scopes which the application is requesting access to.
 
             Unless `disableOfflineAccess` is set to true, the API will also include the standard
             `offline_access` scope in addition to the ones provided here.
@@ -5521,7 +7400,7 @@ components:
           x-go-type-skip-optional-pointer: true
         disableOfflineAccess:
           description: |
-            DisableOfflineAccess is a flag which can be set to true to disable the inclusion of the
+            A flag which can be set to true to disable the inclusion of the
             standard `offline_access` scope in the list of scopes. This is defined separately to
             `scopes` to make it clear that the API will always include the `offline_access` scope
             by default, but can be disabled if the system does not implement the standards so that
@@ -5530,7 +7409,7 @@ components:
           x-go-type-skip-optional-pointer: true
         prompt:
           description: |
-            Prompt controls the behaviour of the OAuth 2.0 provider when the user is redirected to
+            Controls the behaviour of the OAuth 2.0 provider when the user is redirected to
             the authorize URL. This is typically used to force the user to re-authenticate or to
             select a user account.
 
@@ -5545,14 +7424,14 @@ components:
           type: string
         additionalParams:
           description: |
-            AdditionalParams is a URL-encoded query string which can be used to pass additional
+            A URL-encoded query string which can be used to pass additional
             parameters to the OAuth 2.0 authorize endpoint. These cannot conflict with any of the
             other parameters defined by the request, an attempt to do so will result in an error.
 
             These parameters are attached to returned URL as query parameters.
           type: string
           examples:
-            two query parameters: bar=baz&foo=cat%20bob
+            - "bar=baz&foo=cat%20bob"
           x-go-type-skip-optional-pointer: true
       required:
         - credential
@@ -5561,7 +7440,7 @@ components:
 
     InitialiseOAuth2ConnectionResponse:
       description: |
-        InitialiseOAuth2ConnectionResponse contains the URL to redirect the user to in order to
+        The URL to redirect the user to in order to
         initiate an OAuth 2.0 `authorization_code` grant flow.
       type: object
       properties:
@@ -5574,7 +7453,7 @@ components:
 
     InitialiseOAuth1ConnectionRequest:
       description: |
-        InitialiseOAuth1ConnectionRequest is the payload to initialise an OAuth 1.0 connection.
+        The payload to initialise an OAuth 1.0 connection.
       type: object
       properties:
         credential:
@@ -5621,7 +7500,7 @@ components:
       properties:
         id:
           description: |
-            ID is the Versori identifier for the user. Most APIs will not use this field but instead reference
+            The Versori identifier for the user. Most APIs will not use this field but instead reference
             users by their externalId.
           type: string
           format: ulid
@@ -5632,14 +7511,14 @@ components:
           x-go-name: ID
         externalId:
           description: |
-            ExternalID is the identifier for the user as determined by the organisation. This typically should
+            The identifier for the user as determined by the organisation. This typically should
             be the same as the user's ID on the organisations system. Regardless of the value, it must
             be unique within the Organisation.
           type: string
           x-go-name: ExternalID
         displayName:
           description: |
-            DisplayName is an optional human-readable name for the user. If not set, the default is an empty string.
+            An optional human-readable name for the user. If not set, the default is an empty string.
           type: string
         organisationId:
           description: The organisation ID to which the user belongs to.
@@ -5653,12 +7532,12 @@ components:
         createdAt:
           type: string
           format: date-time
-          description: CreatedAt is the time the user was created.
+          description: The time the user was created.
           x-go-type: time.Time
         updatedAt:
           type: string
           format: date-time
-          description: UpdatedAt is the time the user was last updated.
+          description: The time the user was last updated.
           x-go-type: time.Time
       required:
         - id
@@ -5673,11 +7552,11 @@ components:
       type: object
       properties:
         externalId:
-          description: ExternalID is the identifier of the user
+          description: The identifier of the user
           type: string
           x-go-type-name: ExternalID
         displayName:
-          description: DisplayName is a human-readable name for the user
+          description: A human-readable name for the user
           type: string
           x-go-type-skip-optional-pointer: true
       required:
@@ -5862,6 +7741,8 @@ components:
           type: string
         templateBaseUrl:
           type: string
+        isWebhook:
+          type: boolean
 
     SystemCreate:
       type: object
@@ -5872,6 +7753,10 @@ components:
           type: string
         templateBaseUrl:
           type: string
+        isWebhook:
+          type: boolean
+          description: Whether the system is a webhook-based integration.
+          x-go-type-skip-optional-pointer: true
         authSchemeConfigs:
           type: array
           items:
@@ -5935,6 +7820,10 @@ components:
           type: string
         domain:
           type: string
+        isWebhook:
+          type: boolean
+          description: Whether the system is a webhook-based integration.
+          x-go-type-skip-optional-pointer: true
         authSchemeConfigs:
           description: |
 
@@ -6044,7 +7933,7 @@ components:
         contentType:
           type: string
           description: |
-            ContentType is the content type that this action expects to receive in the request body if any, and the
+            The content type that this action expects to receive in the request body if any, and the
             content type of the response body if any. If this field is left blank, then "application/json" is assumed.
           x-go-type-skip-optional-pointer: true
         summary:
@@ -6058,13 +7947,13 @@ components:
         path:
           type: string
           description: |
-            Path is the path of the action, which may contain templated values in curly braces.
+            The path of the action, which may contain templated values in curly braces.
             For example, `/users/{userId}`. The path should be the full path relative to the base URL of the system,
             the base URL containing everything before (and including) the top-level domain (.com, .gov, .org etc).
         parameters:
           type: array
           description: |
-            Parameters is a list of parameters which are used to configure the action. These may be
+            A list of parameters which are used to configure the action. These may be
             used to set values in the path, query string or headers of the request. Note that when creating an action,
             if the path contains templated values in curly braces, these will automatically be converted into
             parameters of type `path` with the name of the parameter being the name of the templated value.
@@ -6073,15 +7962,15 @@ components:
         graphqlQuery:
           type: string
           description: |
-            GraphQLQuery is the GraphQL query to execute for the action. This is only used if the action type is `graphql`.
+            The GraphQL query to execute for the action. This is only used if the action type is `graphql`.
         request:
           type: string
           description: |
-            Request is the request body of the action. This is only used if the action type is `http`.
+            The request body of the action. This is only used if the action type is `http`.
         response:
           type: string
           description: |
-            Response is the response body of the action. This is only used if the action type is `http`.
+            The response body of the action. This is only used if the action type is `http`.
       required:
         - id
         - systemId
@@ -6168,7 +8057,7 @@ components:
               contentType:
                 type: string
                 description: |
-                  ContentType is the content type that this action expects to receive in the request body if any, and the
+                  The content type that this action expects to receive in the request body if any, and the
                   content type of the response body if any. If this field is left blank, then "application/json" is assumed.
                 x-go-type-skip-optional-pointer: true
               parameters:
@@ -6234,6 +8123,8 @@ components:
           description: The name of the template. This is how the connections should be referenced in code.
         dynamic:
           type: boolean
+        templateBaseUrl:
+          type: string
         authSchemeConfigIds:
           type: array
           description: |
@@ -6270,9 +8161,13 @@ components:
           type: string
         dynamic:
           type: boolean
+        isWebhook:
+          type: boolean
+          description: Whether the source system for this template is webhook-based.
+          x-go-type-skip-optional-pointer: true
         authSchemeConfigs:
           description: |
-            AuthSchemeConfigs is a list of auth scheme configs which are used to authenticate with the system.
+            A list of auth scheme configs which are used to authenticate with the system.
             This is used to determine how the connection should be authenticated, and may contain multiple
             configs for different authentication methods. The overwhelming majority of the time, this will be a single config.
             There does exist cases where credentials may need to be applied in sequence, such as mTLS. If there are multiple
@@ -6325,7 +8220,7 @@ components:
     Labels:
       type: object
       description: |
-        Labels is a map of key-value pairs that can be used to store arbitrary metadata about a resource.
+        A map of key-value pairs that can be used to store arbitrary metadata about a resource.
         Keys must start with a letter and can only contain letters, numbers, and underscores.
         Values can be any string.
       x-go-type: map[string]string
@@ -6438,7 +8333,7 @@ components:
           description: ID of the parent span
         name:
           type: string
-          description: Name of the span
+          description: Human-readable span name
         startTime:
           type: string
           format: date-time
@@ -6503,7 +8398,6 @@ components:
           type: integer
         autoscaling:
           $ref: "#/components/schemas/DeploymentAutoscaling"
-          x-go-type-skip-optional-pointer: true
         staticIP:
           type: boolean
           description: |
@@ -6628,7 +8522,7 @@ components:
               type: string
         query:
           type: object
-          description: Query parameters to include in the request.
+          description: Parameters to include in the request query string.
           additionalProperties:
             type: array
             items:
@@ -6728,7 +8622,7 @@ components:
       enum:
         - error
         - manual
-      description: Reason for the issue creation
+      description: Why the issue was created.
 
     IssueSeverityEnum:
       type: string
@@ -6737,7 +8631,7 @@ components:
         - high
         - low
         - medium
-      description: Severity level of the issue
+      description: How severe the issue is.
 
     IssueStatusEnum:
       type: string
@@ -6811,7 +8705,7 @@ components:
           description: Detailed message of the issue
         title:
           type: string
-          description: Title of the issue
+          description: Human-readable title for the issue.
         labels:
           type: object
           description: Key-value pairs for searchable labels
@@ -6855,7 +8749,7 @@ components:
           description: Detailed message of the issue
         title:
           type: string
-          description: Title of the issue
+          description: Human-readable title for the issue.
         labels:
           type: object
           description: Key-value pairs for searchable labels
@@ -6918,7 +8812,7 @@ components:
           description: Detailed message of the issue
         title:
           type: string
-          description: Title of the issue
+          description: Human-readable title for the issue.
         labels:
           type: object
           description: Key-value pairs for searchable labels
@@ -6943,6 +8837,14 @@ components:
             $ref: '#/components/schemas/NotificationChannel'
       required:
         - items
+
+    EditNotificationChannel:
+      type: object
+      properties:
+        name:
+          type: string
+        config:
+          $ref: '#/components/schemas/NotificationConfig'
 
     NotificationChannel:
       type: object
@@ -7013,6 +8915,31 @@ components:
       required:
         - to
 
+    NotificationFilters:
+      type: object
+      properties:
+        title:
+          type: string
+          x-go-type-skip-optional-pointer: true
+        titleMatchCase:
+          type: boolean
+          x-go-type-skip-optional-pointer: true
+        message:
+          type: string
+          x-go-type-skip-optional-pointer: true
+        messageMatchCase:
+          type: boolean
+          x-go-type-skip-optional-pointer: true
+        severities:
+          type: array
+          items:
+            $ref: '#/components/schemas/IssueSeverityEnum'
+        labelFilters:
+          type: object
+          x-go-type: map[string]string
+          x-go-type-skip-optional-pointer: true
+
+
     ProjectNotificationList:
       type: object
       properties:
@@ -7070,6 +8997,8 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/NotificationConfig'
+        filters:
+          $ref: '#/components/schemas/NotificationFilters'
 
     CreateProjectNotification:
       type: object
@@ -7092,9 +9021,11 @@ components:
             path: github.com/versori/cli/pkg/ulid
         name:
           type: string
+        filters:
+          $ref: '#/components/schemas/NotificationFilters'
     ValidationResult:
       description: |
-        ValidationResult represents the response from project validation using deno check.
+        The response from project validation using deno check.
       type: object
       properties:
         project_id:
@@ -7111,21 +9042,21 @@ components:
         - validation
     ValidationStatus:
       description: |
-        ValidationStatus represents the detailed status of project validation using deno check.
+        The detailed status of project validation using deno check.
       type: object
       properties:
         duration:
           type: string
-          description: Duration of the validation process.
+          description: How long validation took.
         error:
           type: string
-          description: Error message if validation failed.
+          description: Message explaining why validation failed.
         success:
           type: boolean
           description: Whether validation passed or failed.
         output:
           type: string
-          description: Output from deno check command.
+          description: Text emitted by the deno check command.
         timestamp:
           type: string
           format: date-time
@@ -7139,7 +9070,7 @@ components:
 
     IntegrationFlows:
       description: |
-        IntegrationFlows represents the flow of an integration.
+        The flow of an integration.
       type: object
       properties:
         flows:
@@ -7151,7 +9082,7 @@ components:
 
     IntegrationFlow:
       description: |
-        IntegrationFlow represents the flow of an integration.
+        The flow of an integration.
       type: object
       properties:
         id:
@@ -7163,10 +9094,10 @@ components:
           x-go-type-skip-optional-pointer: true
         name:
           type: string
-          description: Name of the flow.
+          description: Human-readable name of the flow.
         description:
           type: string
-          description: Description of the flow.
+          description: Human-readable summary of the flow.
         spans:
           type: array
           items:
@@ -7178,12 +9109,12 @@ components:
 
     OTelSpan:
       description: |
-        OTelSpan represents an OpenTelemetry span containing execution trace data.
+        An OpenTelemetry span containing execution trace data.
       type: object
       properties:
         name:
           type: string
-          description: Name of the span (e.g., "webhook-incoming-webhook").
+          description: Human-readable span name (e.g., "webhook-incoming-webhook").
         startTime:
           type: string
           format: date-time
@@ -7194,7 +9125,7 @@ components:
           description: End time of the span in ISO 8601 format with nanosecond precision.
         duration:
           type: number
-          description: Duration of the span in milliseconds.
+          description: How long the span took, in milliseconds.
           x-go-type: float64
         attributes:
           type: object
@@ -7234,7 +9165,7 @@ components:
 
     OTelSpanContext:
       description: |
-        OTelSpanContext contains the trace context information for a span.
+        The trace context information for a span.
       type: object
       properties:
         traceId:
@@ -7253,7 +9184,7 @@ components:
 
     OTelSpanStatus:
       description: |
-        OTelSpanStatus represents the status of a span.
+        The status of a span.
       type: object
       properties:
         code:
@@ -7265,18 +9196,18 @@ components:
 
     OTelSpanEvent:
       description: |
-        OTelSpanEvent represents a timestamped event that occurred during a span's lifetime.
+        A timestamped event that occurred during a span's lifetime.
         Events are structured log messages or annotations on a span, typically used to denote
         meaningful, singular points in time during the span's duration.
       type: object
       properties:
         name:
           type: string
-          description: Name of the event (e.g., "exception", "message", "annotation").
+          description: Event name (e.g., "exception", "message", "annotation").
         timestamp:
           type: string
           format: date-time
-          description: Timestamp when the event occurred in ISO 8601 format with nanosecond precision.
+          description: When the event occurred, in ISO 8601 format with nanosecond precision.
         attributes:
           type: object
           description: Key-value pairs providing additional context about the event.
@@ -7294,12 +9225,12 @@ components:
       type: object
       properties:
         current:
-          description: Current metric value
+          description: Latest metric value
           type: number
           x-go-type: float64
           x-go-type-skip-optional-pointer: true
         past:
-          description: Past metric value
+          description: Previous metric value
           type: number
           x-go-type: float64
           x-go-type-skip-optional-pointer: true
@@ -7345,6 +9276,924 @@ components:
           x-go-type: map[string]ProjectMetricSummary
       required:
         - items
+
+    CreateBindingRequest:
+      type: object
+      description: |
+        Creates a binding with a name. With the name, you should supply only one of the other fields otherwise an error
+        is returned since bindings must have unique names.
+      properties:
+        name:
+          type: string
+          description: |
+            The name of the binding. This is the actual property name that is used in the SDK code. For example, if you
+            have a binding called `my_binding` then you should be able to call this binding in the SDK code by doing:
+            `env.my_binding` where `env` represents your bindings object.
+        environmentId:
+          type: string
+          format: ulid
+          description: |
+            If this is set to a valid environmentID, then this binding will override any project bindings of the same name
+            for the given environment.
+          x-go-type: ulid.ULID
+          x-go-name: EnvironmentID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        connectionId:
+          type: string
+          format: ulid
+          description: |
+            The ID of the connection to use as this binding.
+          x-go-type: ulid.ULID
+          x-go-name: ConnectionID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        kvStoreId:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-name: KVStoreID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        variable:
+          $ref: '#/components/schemas/VariableBinding'
+        activationBinding:
+          $ref: '#/components/schemas/ActivationBinding'
+      required:
+        - name
+
+    ActivationBinding:
+      type: object
+      properties:
+        name:
+          type: string
+        connectionTemplateId:
+          type: string
+          format: ulid
+          description: |
+            The ID of the connection template to use for this activation binding.
+          x-go-type: ulid.ULID
+          x-go-name: ConnectionTemplateID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        schema:
+          type: object
+          x-go-type-skip-optional-pointer: true
+          x-go-type: json.RawMessage
+      required:
+        - name
+
+    VariableBinding:
+      type: object
+      properties:
+        value:
+          oneOf:
+            - type: string
+            - type: number
+            - type: integer
+            - type: boolean
+            - type: object
+            - type: array
+              items: { }
+          nullable: true
+          x-go-type: json.RawMessage
+          description: |
+            The value of a variable binding, can be any valid javascript type.
+
+    ProjectBindings:
+      type: array
+      items:
+        $ref: '#/components/schemas/Binding'
+
+    Binding:
+      type: object
+      properties:
+        id:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-name: BindingID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        environmentId:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-name: EnvironmentID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        kvStoreId:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-name: KVStoreID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        connectionId:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-name: ConnectionID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        variable:
+          $ref: '#/components/schemas/VariableBinding'
+        activationNamespace:
+          type: array
+          x-go-type-skip-optional-pointer: true
+          items:
+            $ref: '#/components/schemas/ActivationBinding'
+      required:
+        - name
+
+    UsageMetricType:
+      type: string
+      enum:
+        - counter
+        - gauge
+      description: |
+        Aggregation semantics for the metric. `counter` values are summed within
+        each bucket; `gauge` values are averaged within each bucket.
+
+    UsageRange:
+      type: object
+      description: Time range and bucket size for a usage query.
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        granularity:
+          type: string
+          description: Bucket size used to build the returned points (`15m`, `1h`, `6h`, `1d`).
+      required:
+        - start
+        - end
+        - granularity
+
+    UsageDataPoint:
+      type: object
+      description: Single bucket in a usage series. `timestamp` is the bucket start.
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        value:
+          type: number
+          x-go-type: float64
+          x-go-type-skip-optional-pointer: true
+        rate:
+          type: number
+          x-go-type: float64
+          description: |
+            Per-second rate for counter buckets (`value` divided by the bucket
+            width in seconds). Omitted for gauge metrics.
+      required:
+        - timestamp
+        - value
+
+    UsageSummary:
+      type: object
+      description: |
+        Aggregate statistics for a usage series. `total`/`rate` are populated for
+        counters; `latest`/`min`/`max`/`average` are populated for gauges. Unused
+        fields are omitted.
+      properties:
+        total:
+          type: number
+          x-go-type: float64
+        rate:
+          type: number
+          x-go-type: float64
+          description: Average per-second rate over the whole range (counters only).
+        latest:
+          type: number
+          x-go-type: float64
+        min:
+          type: number
+          x-go-type: float64
+        max:
+          type: number
+          x-go-type: float64
+        average:
+          type: number
+          x-go-type: float64
+
+    UsageSeries:
+      type: object
+      description: |
+        One series in a usage response. `project_id` is set when the metric is
+        project-scoped and the response is grouped by project; it is omitted
+        for org-level metrics or when a `project_id` filter was supplied.
+      properties:
+        project_id:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        summary:
+          $ref: "#/components/schemas/UsageSummary"
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageDataPoint"
+      required:
+        - summary
+        - points
+
+    UsageResponse:
+      type: object
+      description: |
+        Time-bucketed usage for a single metric over `[start, end)`. The
+        top-level `summary` aggregates across all entries in `series`.
+      properties:
+        metric:
+          type: string
+          description: Echoes the requested metric name.
+        type:
+          $ref: "#/components/schemas/UsageMetricType"
+        unit:
+          type: string
+          description: Base unit of the metric, e.g. `count`, `tokens`, `millicore_seconds`.
+        range:
+          $ref: "#/components/schemas/UsageRange"
+        summary:
+          $ref: "#/components/schemas/UsageSummary"
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageSeries"
+      required:
+        - metric
+        - type
+        - unit
+        - range
+        - summary
+        - series
+
+    # -------------------------------------------------------------------------
+    # Git OAuth schemas
+    # -------------------------------------------------------------------------
+
+    GitProviderType:
+      description: |
+        GitProviderType identifies which Git host the configuration applies to.
+      type: string
+      enum:
+        - gitlab
+        - github
+
+    InitialiseGitOAuthRequest:
+      description: |
+        The body for `InitialiseGitOAuth`. The frontend supplies the redirect URI it will
+        listen on; the backend validates this is the same value registered with the provider's OAuth application.
+      type: object
+      properties:
+        redirectUri:
+          description: The redirect URI the OAuth provider should send the user back to after authorisation.
+          type: string
+          format: uri
+      required:
+        - redirectUri
+
+    InitialiseGitOAuthResponse:
+      type: object
+      properties:
+        authorizeUrl:
+          description: Fully-formed authorisation URL the frontend should open in a popup.
+          type: string
+          format: uri
+        state:
+          description: |
+            Opaque state token. The frontend should not interpret this; it's persisted server-side and validated on
+            `CompleteGitOAuth`.
+          type: string
+      required:
+        - authorizeUrl
+        - state
+
+    CompleteGitOAuthRequest:
+      type: object
+      properties:
+        code:
+          description: Authorisation code returned by the provider on the redirect URI.
+          type: string
+        state:
+          description: Opaque state token previously returned by `InitialiseGitOAuth`.
+          type: string
+        redirectUri:
+          description: |
+            The redirect URI used when initialising. Must match exactly — the OAuth 2.0 spec requires the same value
+            on the token exchange as on the authorize request.
+          type: string
+          format: uri
+      required:
+        - code
+        - state
+        - redirectUri
+
+    GitUserConnection:
+      description: |
+        GitUserConnection binds a Versori user to the credential issued for them by a Git provider configuration.
+      type: object
+      properties:
+        id:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        organisationId:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        userId:
+          description: Versori user ID.
+          type: string
+        provider:
+          $ref: "#/components/schemas/GitProviderType"
+        instanceUrl:
+          type: string
+        externalUserId:
+          description: The user ID returned by the Git provider's userinfo endpoint.
+          type: string
+        externalUsername:
+          description: The username returned by the Git provider's userinfo endpoint.
+          type: string
+        externalDisplayName:
+          type: string
+        externalAvatarUrl:
+          type: string
+        connectedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organisationId
+        - userId
+        - provider
+        - instanceUrl
+        - externalUserId
+        - externalUsername
+        - connectedAt
+
+    GitUserConnectionList:
+      type: object
+      properties:
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/GitUserConnection"
+      required:
+        - connections
+
+    OrgGitRepositoryBinding:
+      description: A Git repository currently linked to an integration in the organisation.
+      type: object
+      properties:
+        repositoryId:
+          type: string
+        provider:
+          $ref: "#/components/schemas/GitProviderType"
+        instanceUrl:
+          type: string
+        repoOwner:
+          type: string
+        repoName:
+          type: string
+        projectId:
+          type: string
+        projectName:
+          type: string
+      required:
+        - repositoryId
+        - provider
+        - instanceUrl
+        - repoOwner
+        - repoName
+        - projectId
+        - projectName
+
+    OrgGitRepositoryBindingList:
+      type: object
+      properties:
+        bindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgGitRepositoryBinding"
+      required:
+        - bindings
+
+    GitRepository:
+      description: |
+        A repository the user can access through a Git connection. Field set is the minimum needed by the picker UI;
+        provider-specific extras (visibility, archived flags, etc) are filtered out server-side.
+      type: object
+      properties:
+        id:
+          description: Provider-side repository identifier (GitLab numeric ID as string, GitHub `owner/repo`, etc).
+          type: string
+        name:
+          type: string
+        fullName:
+          description: |
+            Human-readable namespaced name, e.g. `group/subgroup/repo` for GitLab or `owner/repo` for GitHub.
+          type: string
+        defaultBranch:
+          type: string
+          nullable: true
+        webUrl:
+          type: string
+      required:
+        - id
+        - name
+        - fullName
+        - webUrl
+
+    GitRepositoryList:
+      type: object
+      properties:
+        repositories:
+          type: array
+          items:
+            $ref: "#/components/schemas/GitRepository"
+      required:
+        - repositories
+
+    GitBranch:
+      type: object
+      properties:
+        name:
+          type: string
+        isDefault:
+          type: boolean
+        isProtected:
+          type: boolean
+      required:
+        - name
+        - isDefault
+        - isProtected
+
+    GitBranchList:
+      type: object
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/GitBranch"
+      required:
+        - branches
+
+    GetProjectGitBindingResponse:
+      description: |
+        Wrapper for the `GET /git-binding` response so the endpoint can signal "no binding" with a normal 200
+        response. `binding` is present when the project is linked, omitted/null when it is not.
+      type: object
+      properties:
+        binding:
+          $ref: "#/components/schemas/ProjectGitBinding"
+
+    ProjectGitBinding:
+      description: Per-project binding to a Git repository. Shared across all org members.
+      type: object
+      properties:
+        projectId:
+          type: string
+        gitConnectionId:
+          description: ID of the git_user_connection that performed the link (for audit only; runtime calls use the calling user's own connection).
+          type: string
+        provider:
+          $ref: "#/components/schemas/GitProviderType"
+        instanceUrl:
+          type: string
+        repositoryId:
+          description: Provider-side repository identifier (e.g. GitLab numeric project ID).
+          type: string
+        repoOwner:
+          description: Everything before the last slash in the repo's full path (e.g. group/subgroup).
+          type: string
+        repoName:
+          description: Last segment of the repo's full path.
+          type: string
+        defaultBranch:
+          type: string
+        currentBranch:
+          type: string
+        lastSyncedSha:
+          type: string
+        linkedBy:
+          description: Versori user ID of whoever last (re)linked the project.
+          type: string
+        linkedAt:
+          type: string
+          format: date-time
+      required:
+        - projectId
+        - gitConnectionId
+        - provider
+        - instanceUrl
+        - repositoryId
+        - repoOwner
+        - repoName
+        - defaultBranch
+        - currentBranch
+        - linkedBy
+        - linkedAt
+
+    ProjectGitBindingUpsert:
+      description: Body for PUT - everything the picker collected from the user.
+      type: object
+      properties:
+        gitConnectionId:
+          type: string
+        repositoryId:
+          type: string
+        repoOwner:
+          type: string
+        repoName:
+          type: string
+        defaultBranch:
+          type: string
+        currentBranch:
+          description: |
+            Legacy single-branch field, retained for backward compatibility with clients that pre-date
+            per-environment branch bindings. New clients should set this to `defaultBranch` and use the
+            per-environment binding APIs (and the per-user working branch API) for branch routing.
+          type: string
+      required:
+        - gitConnectionId
+        - repositoryId
+        - repoOwner
+        - repoName
+        - defaultBranch
+        - currentBranch
+
+    DeploymentMode:
+      description: |
+        How Versori reacts to changes on an environment's mapped branch.
+          - manual_only: deploys happen only when a user clicks Deploy in the UI or hits the deploy API.
+          - external_ci_cd: Versori never triggers deployments for this environment. An external CI/CD pipeline owns the deployment.
+      type: string
+      enum:
+        - manual_only
+        - external_ci_cd
+
+    EnvironmentGitBinding:
+      description: |
+        Per-environment binding mapping a Versori environment to a Git branch and a deployment mode. The project must
+        already be linked via `ProjectGitBinding`; this binding inherits the project's provider, instance, and repo.
+      type: object
+      properties:
+        projectId:
+          type: string
+        environmentId:
+          type: string
+          format: ulid
+          x-go-type: ulid.ULID
+          x-go-name: EnvironmentID
+          x-go-type-import:
+            path: github.com/versori/cli/pkg/ulid
+        branchName:
+          description: Git branch this environment tracks and deploys from.
+          type: string
+        deploymentMode:
+          $ref: "#/components/schemas/DeploymentMode"
+        lastDeployedSha:
+          description: Most recent commit SHA Versori deployed for this environment from the mapped branch.
+          type: string
+        boundBy:
+          description: Versori user ID of whoever last (re)bound the environment.
+          type: string
+        boundAt:
+          type: string
+          format: date-time
+      required:
+        - projectId
+        - environmentId
+        - branchName
+        - deploymentMode
+        - boundBy
+        - boundAt
+
+    EnvironmentGitBindingUpsert:
+      description: Body for PUT - per-env mapping plus optional branch creation.
+      type: object
+      properties:
+        branchName:
+          description: Git branch this environment will track.
+          type: string
+        deploymentMode:
+          $ref: "#/components/schemas/DeploymentMode"
+        createFromBranch:
+          description: |
+            When set and `branchName` does not exist on the repository, create it from this base branch before
+            persisting the binding. When unset, the binding fails if `branchName` does not exist.
+          type: string
+          x-go-type-skip-optional-pointer: true
+      required:
+        - branchName
+        - deploymentMode
+
+    EnvironmentGitBindingList:
+      description: Per-project list of environment Git bindings.
+      type: object
+      properties:
+        bindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnvironmentGitBinding"
+      required:
+        - bindings
+
+    ProjectWorkingBranch:
+      description: Per-(user, project) working branch where the user commits before promoting changes to env-mapped branches.
+      type: object
+      properties:
+        projectId:
+          type: string
+        userId:
+          type: string
+        branchName:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - projectId
+        - userId
+        - branchName
+        - updatedAt
+
+    ProjectWorkingBranchUpsert:
+      description: Body for PUT - working branch plus optional branch creation.
+      type: object
+      properties:
+        branchName:
+          type: string
+        createFromBranch:
+          description: |
+            When set and `branchName` does not exist on the repository, create it from this base branch before
+            persisting the working branch. When unset, the upsert fails if `branchName` does not exist.
+          type: string
+          x-go-type-skip-optional-pointer: true
+      required:
+        - branchName
+
+    EntitlementCatalogItem:
+      type: object
+      description: A single feature entry in the static entitlements catalog.
+      properties:
+        key:
+          type: string
+          description: Stable identifier used in grants and decisions.
+        displayName:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          description: Grouping label for the feature, e.g. `ai` or `projects`.
+        defaultEnabled:
+          type: boolean
+          description: Whether the feature is enabled for orgs with no explicit grant.
+      required:
+        - key
+        - displayName
+        - description
+        - category
+        - defaultEnabled
+
+    EntitlementCatalog:
+      type: object
+      properties:
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntitlementCatalogItem"
+      required:
+        - features
+
+    QuotaCatalogItem:
+      type: object
+      description: A single quota entry in the static quotas catalog.
+      properties:
+        key:
+          type: string
+          description: Stable identifier used in grants and decisions.
+        displayName:
+          type: string
+        description:
+          type: string
+        kind:
+          $ref: "#/components/schemas/QuotaKind"
+        defaultLimit:
+          type: number
+          x-go-type: float64
+        defaultEnforcement:
+          $ref: "#/components/schemas/QuotaEnforcement"
+        gatingEntitlement:
+          type: string
+          description: Entitlements key that gates this quota; empty when always active.
+      required:
+        - key
+        - displayName
+        - description
+        - kind
+        - defaultLimit
+        - defaultEnforcement
+        - gatingEntitlement
+
+    QuotaCatalog:
+      type: object
+      properties:
+        quotas:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuotaCatalogItem"
+      required:
+        - quotas
+
+    EntitlementSource:
+      type: string
+      description: |
+        Origin of the grant that produced this decision. `default` means no
+        explicit grant exists and the catalog default was applied. `trial` is a
+        time-boxed limited grant; once expired it forces the feature off rather
+        than falling back to the default.
+      enum:
+        - default
+        - manual_admin
+        - stripe
+        - trial
+        - plan_default
+
+    EntitlementDecision:
+      type: object
+      description: Resolved enabled/disabled decision for a single entitlement feature.
+      properties:
+        featureKey:
+          type: string
+          description: Catalog key for the feature.
+        displayName:
+          type: string
+        enabled:
+          type: boolean
+        source:
+          $ref: "#/components/schemas/EntitlementSource"
+        reason:
+          type: string
+          description: Human-readable explanation of why the decision was made.
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the grant expires; absent if it does not expire.
+      required:
+        - featureKey
+        - displayName
+        - enabled
+        - source
+        - reason
+
+    EntitlementDecisionList:
+      type: object
+      properties:
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntitlementDecision"
+      required:
+        - decisions
+
+    QuotaSource:
+      type: string
+      description: |
+        Origin of the grant that produced this decision. `default` means no
+        explicit grant exists and the catalog default was applied. `trial` is a
+        time-boxed limited grant; once expired it forces a deny (limit 0, hard
+        enforcement) rather than falling back to the default.
+      enum:
+        - default
+        - manual_admin
+        - stripe
+        - trial
+        - plan_default
+
+    QuotaEnforcement:
+      type: string
+      description: |
+        What the platform does when the quota is exceeded. `soft` logs and
+        alerts; `hard` blocks the operation; `disabled` means the quota is
+        tracked but not enforced.
+      enum:
+        - soft
+        - hard
+        - disabled
+
+    QuotaKind:
+      type: string
+      description: |
+        The measurement window for the quota. `lifetime` is a cumulative
+        all-time counter; `month` resets each calendar month; `second` is a
+        per-second rate enforced on the hot path.
+      enum:
+        - lifetime
+        - month
+        - second
+
+    QuotaDecision:
+      type: object
+      description: |
+        Resolved limit, usage, and enforcement for a single quota. `usage` is
+        populated from the slow-path quota_usage table for `lifetime` and
+        `month` quotas; it is 0 for `second` quotas whose usage lives in
+        Redis.
+      properties:
+        quotaKey:
+          type: string
+          description: Catalog key for the quota.
+        displayName:
+          type: string
+        limit:
+          type: number
+          x-go-type: float64
+          description: Resolved upper limit for the quota.
+        usage:
+          type: number
+          x-go-type: float64
+          description: Current consumed value for the active period; 0 when untracked.
+        enforcement:
+          $ref: "#/components/schemas/QuotaEnforcement"
+        kind:
+          $ref: "#/components/schemas/QuotaKind"
+        unit:
+          type: string
+          description: Dimension of `limit` and `usage`, e.g. `count`, `bytes`, `tokens`.
+        periodBucket:
+          type: string
+          description: |
+            The period the `usage` value covers: `lifetime` for lifetime quotas,
+            `YYYY-MM` for monthly quotas, empty for hot-path quotas.
+        periodStart:
+          type: string
+          format: date-time
+          nullable: true
+          description: Inclusive start of the current period window; absent for untimed quotas.
+        periodEnd:
+          type: string
+          format: date-time
+          nullable: true
+          description: Exclusive end of the current period window; absent for untimed quotas.
+        gatingEntitlement:
+          type: string
+          description: |
+            Entitlements catalog key that gates this quota; empty when the quota
+            is always active.
+        gateEnabled:
+          type: boolean
+          description: Whether the gating entitlement is enabled. Always true when there is no gate.
+        source:
+          $ref: "#/components/schemas/QuotaSource"
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the grant expires; absent if it does not expire.
+      required:
+        - quotaKey
+        - displayName
+        - limit
+        - usage
+        - enforcement
+        - kind
+        - unit
+        - periodBucket
+        - gatingEntitlement
+        - gateEnabled
+        - source
+
+    QuotaDecisionList:
+      type: object
+      properties:
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuotaDecision"
+      required:
+        - decisions
 
   parameters:
     organisation_id:
@@ -7498,6 +10347,18 @@ components:
       schema:
         type: string
 
+    workflow_id:
+      name: workflow_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: ulid
+        x-go-type: ulid.ULID
+        x-go-name: WorkflowID
+        x-go-type-import:
+          path: github.com/versori/cli/pkg/ulid
+
     system_id:
       name: system_id
       in: path
@@ -7522,6 +10383,25 @@ components:
         x-go-type-import:
           path: github.com/versori/cli/pkg/ulid
 
+    git_provider:
+      name: provider
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/GitProviderType"
+
+    git_connection_id:
+      name: git_connection_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: ulid
+        x-go-type: ulid.ULID
+        x-go-name: GitConnectionID
+        x-go-type-import:
+          path: github.com/versori/cli/pkg/ulid
+
     env_id:
       name: env_id
       in: query
@@ -7531,6 +10411,7 @@ components:
 
     project_env:
       name: project_env
+      x-go-name: ProjectEnvNameOrID
       in: query
       required: false
       schema:
