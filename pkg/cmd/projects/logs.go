@@ -39,6 +39,7 @@ type logs struct {
 	end           string
 	limit         int
 	search        string
+	order         string
 }
 
 type LogsAPIResponse struct {
@@ -74,6 +75,7 @@ func NewLogs(c *config.ConfigFactory) *cobra.Command {
 	f.StringVar(&l.end, "end", "", "Absolute window end (same formats as --start; defaults to 7 days after --start when omitted).")
 	f.IntVar(&l.limit, "limit", 0, "How many logs to retrieve; 0 means no explicit limit")
 	f.StringVar(&l.search, "search", "", "Search query to filter logs")
+	f.StringVar(&l.order, "order", "asc", "Sort order for returned logs (asc or desc). Defaults to asc; the platform API defaults to desc.")
 
 	_ = cmd.MarkFlagRequired("environment")
 
@@ -84,6 +86,10 @@ func (l *logs) Run(cmd *cobra.Command, args []string) {
 	currentDir, err := os.Getwd()
 	if err != nil {
 		utils.NewExitError().WithMessage("failed to get current directory").WithReason(err).Done()
+	}
+
+	if err := validateOrder(l.order); err != nil {
+		utils.NewExitError().WithMessage(err.Error()).Done()
 	}
 
 	projectId := l.projectId.GetFlagOrDie(currentDir)
@@ -158,6 +164,16 @@ func parseLogTimestamp(flag, value string) time.Time {
 	return time.Time{}
 }
 
+// validateOrder accepts only the platform API's order values.
+func validateOrder(order string) error {
+	switch order {
+	case "asc", "desc":
+		return nil
+	default:
+		return fmt.Errorf("invalid --order %q (must be one of [asc desc])", order)
+	}
+}
+
 // newLogsRequest builds the base HTTP request with common query params
 func (l *logs) newLogsRequest(projectId string, into any) *utils.HTTPRequest {
 	requestPath := "o/:organisation/projects/" + projectId + "/logs"
@@ -165,9 +181,15 @@ func (l *logs) newLogsRequest(projectId string, into any) *utils.HTTPRequest {
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(into).
-		WithPath(requestPath).
+		WithPath(requestPath)
+	return l.withLogQueryParams(req)
+}
+
+// withLogQueryParams attaches the shared logs query parameters.
+func (l *logs) withLogQueryParams(req *utils.HTTPRequest) *utils.HTTPRequest {
+	req = req.
 		WithQueryParam("project_env", l.env).
-		WithQueryParam("order", "asc").
+		WithQueryParam("order", l.order).
 		WithQueryParam("latest", fmt.Sprintf("%t", false))
 	if l.search != "" {
 		req = req.WithQueryParam("search", l.search)

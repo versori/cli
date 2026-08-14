@@ -29,7 +29,7 @@ Reference for generating integration workflows with the Versori Run SDK. Covers 
   - [Activation](#activation)
   - [AsyncWorkflow](#asyncworkflow)
 - [Key-Value Storage](#key-value-storage)
-  - [Batch writes](#batch-writes)
+  - [Batch operations](#batch-operations)
 - [Common Patterns](#common-patterns)
   - [Data Transformation Pipeline](#data-transformation-pipeline)
   - [Error Handling with Issue Reporting](#error-handling-with-issue-reporting)
@@ -682,9 +682,9 @@ const count = await kv.count(['users']);
 - `{ defaultValue: value }` — return a default value instead of `undefined` when the key is missing
 - `{ throwOnNotFound: true }` — throw a `KVNotFoundError` when the key is missing
 
-### Batch writes
+### Batch operations
 
-Writing many keys with individual `set()` calls costs one round-trip each. Two methods write a whole set in a single request. Both take the same entry shape, and values are JSON-serialised exactly like `set()` so batched writes round-trip through `get()` identically:
+Writing or deleting many keys one call at a time costs a round-trip each. Three methods batch the work into a single request. The two writes share an entry shape, and values are JSON-serialised exactly like `set()` so batched writes round-trip through `get()` identically:
 
 ```typescript
 type SetManyEntry = { key: string | string[]; value: unknown; options?: SetOptions };
@@ -694,6 +694,7 @@ type SetManyEntry = { key: string | string[]; value: unknown; options?: SetOptio
 |--------|-----------|------------|---------|
 | `setMany(entries)` | Upsert — overwrites existing keys | Partial success: commits what it can | `KVBatchResult` |
 | `insertMany(entries)` | Atomic insert — never overwrites | All-or-nothing: writes nothing, throws | `Promise<void>` |
+| `deleteMany(keys)` | Delete — missing keys are ignored | Single overall status; rejects on batch failure | `Promise<void>` |
 
 Reach for `setMany` on idempotent re-syncs where overwriting is fine and you'd rather tolerate individual failures than abort the whole batch. It never throws per-entry — inspect the result instead of assuming success:
 
@@ -712,7 +713,13 @@ Reach for `insertMany` to seed brand-new keys where a collision is a genuine err
 await kv.insertMany(newOrders.map((o) => ({ key: ['orders', o.id], value: o })));
 ```
 
-There is no batch delete — remove keys with `delete()` per key, or clear a whole sub-tree with `ctx.destroy(scope)`.
+Use `deleteMany` to remove many keys in one round-trip. It takes key paths (not entries), treats a missing key as a no-op (like `delete()`), and reports a single overall status rather than per-key results — so it resolves when the batch completes or rejects if the request fails:
+
+```typescript
+await kv.deleteMany([['orders', '1'], ['orders', '2'], ['orders', '3']]);
+```
+
+To clear an entire sub-tree rather than enumerated keys, use `ctx.destroy(scope)`.
 
 ---
 
@@ -934,7 +941,7 @@ webhook('id', {
 | Log error | `ctx.log.error('msg', { error })` |
 | Get input data | `ctx.data` |
 | Store data | `ctx.openKv(':project:').set(key, value)` |
-| Batch write | `ctx.openKv(':workspace:').setMany(entries)` / `.insertMany(entries)` |
+| Batch write / delete | `ctx.openKv(':workspace:').setMany(entries)` / `.insertMany(entries)` / `.deleteMany(keys)` |
 | Get stored data | `ctx.openKv(':project:').get(key)` |
 | Create issue | `ctx.createIssue({ severity, title, message, annotations })` |
 | Start workflow | `ctx.start('workflow-id', { data, maxAttempts })` |
@@ -964,6 +971,7 @@ interface KeyValue {
   setMany(entries: SetManyEntry[]): Promise<KVBatchResult>;  // batch upsert, partial success
   insertMany(entries: SetManyEntry[]): Promise<void>;         // atomic insert-only, all-or-nothing
   delete(key: string | string[]): Promise<void>;
+  deleteMany(keys: (string | string[])[]): Promise<void>;     // batch delete, single overall status
   list(prefix: string[], options?: ListKVRequest): Promise<ListKVResponse>;
   count(prefix: string[]): Promise<CountKVResponse>;
 }

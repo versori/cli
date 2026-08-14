@@ -227,6 +227,8 @@ versori projects logs  [flags]
 
 * `-h`, `--help`: help for logs
 * `--limit`: How many logs to retrieve; 0 means no explicit limit
+* `--order`: Sort order for returned logs (asc or desc). Defaults to asc; the platform API defaults to desc.
+
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
 * `--search`: Search query to filter logs
