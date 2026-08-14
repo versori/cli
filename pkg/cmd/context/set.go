@@ -40,7 +40,7 @@ func NewSet(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (a *set) Run(cmd *cobra.Command, args []string) {
-	a.configFactory.LoadConfigAndContext()
+	a.configFactory.LoadConfig()
 	var ctxName string
 
 	if len(args) == 0 {

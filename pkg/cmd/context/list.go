@@ -43,7 +43,7 @@ func NewList(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (l *list) Run(cmd *cobra.Command, args []string) {
-	l.configFactory.LoadConfigAndContext()
+	l.configFactory.LoadConfig()
 
 	contextSlice := make([]config.Context, 0, len(l.configFactory.Config.Contexts))
 	for _, c := range l.configFactory.Config.Contexts {
