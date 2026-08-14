@@ -43,7 +43,7 @@ func NewRemove(c *config.ConfigFactory) *cobra.Command {
 }
 
 func (rm *remove) Run(cmd *cobra.Command, args []string) {
-	rm.configFactory.LoadConfigAndContext()
+	rm.configFactory.LoadConfig()
 	var name string
 
 	if len(args) == 0 {

@@ -313,3 +313,53 @@ func TestMaybeApplyVersoriContextForProject_PackageFuncNoop(t *testing.T) {
 	// Should not panic.
 	MaybeApplyVersoriContextForProject(t.TempDir(), "01PROJ")
 }
+
+// TestRemoveContext_ClearsActiveContextWhenRemoved reproduces the "context rm
+// on the active context bugs out the CLI" report: removing the currently
+// active context must clear ActiveContext, otherwise config.yaml is left
+// pointing at a context that no longer exists, and every later command that
+// resolves a context (including `context list` and `context select`) dies
+// in contextOrDie before it can do anything.
+func TestRemoveContext_ClearsActiveContextWhenRemoved(t *testing.T) {
+	c := &ConfigFactory{
+		configPath: filepath.Join(t.TempDir(), "config.yaml"),
+		Config: &Config{
+			ActiveContext: "prod",
+			Contexts: map[string]Context{
+				"prod": {Name: "prod"},
+				"dev":  {Name: "dev"},
+			},
+		},
+	}
+
+	c.RemoveContext("prod")
+
+	if _, ok := c.Config.Contexts["prod"]; ok {
+		t.Errorf("expected context %q to be removed from Contexts", "prod")
+	}
+	if c.Config.ActiveContext != "" {
+		t.Errorf("ActiveContext: got %q, want empty after removing the active context", c.Config.ActiveContext)
+	}
+}
+
+// TestRemoveContext_KeepsActiveContextWhenRemovingOther guards against an
+// overcorrection: removing a non-active context must leave ActiveContext
+// untouched.
+func TestRemoveContext_KeepsActiveContextWhenRemovingOther(t *testing.T) {
+	c := &ConfigFactory{
+		configPath: filepath.Join(t.TempDir(), "config.yaml"),
+		Config: &Config{
+			ActiveContext: "prod",
+			Contexts: map[string]Context{
+				"prod": {Name: "prod"},
+				"dev":  {Name: "dev"},
+			},
+		},
+	}
+
+	c.RemoveContext("dev")
+
+	if c.Config.ActiveContext != "prod" {
+		t.Errorf("ActiveContext: got %q, want %q (should be untouched)", c.Config.ActiveContext, "prod")
+	}
+}

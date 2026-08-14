@@ -111,6 +111,18 @@ func (c *ConfigFactory) LoadConfigAndContext() {
 	defaultFactory = c
 }
 
+// LoadConfig loads the persistent CLI config (the map of configured contexts
+// and which one is active) without resolving an active context. Unlike
+// LoadConfigAndContext, this never dies when there is no active context or
+// when the active context references a name that no longer exists.
+//
+// Use this for commands that operate on the set of configured contexts
+// itself (list, select, remove) rather than ones that need to act as the
+// active context (which should use LoadConfigAndContext).
+func (c *ConfigFactory) LoadConfig() {
+	c.loadConfig()
+}
+
 // loadVersoriFile reads .versori from the current working directory once and
 // caches the result on the factory. Errors other than "not found" abort the
 // command — a malformed .versori in cwd is the user's bug, not ours.
@@ -161,7 +173,7 @@ func (c *ConfigFactory) contextOrDie() {
 	ctxName, source := c.resolveContextName()
 
 	if ctxName == "" {
-		fmt.Fprintln(os.Stderr, "You have no active context\nTry running\n\tversori context set")
+		fmt.Fprintln(os.Stderr, "You have no active context\nTry running\n\tversori context select")
 		os.Exit(1)
 	}
 
@@ -328,6 +340,10 @@ func (c *ConfigFactory) RemoveContext(ctxName string) {
 	}
 
 	delete(c.Config.Contexts, ctxName)
+
+	if c.Config.ActiveContext == ctxName {
+		c.Config.ActiveContext = ""
+	}
 
 	c.saveConfig()
 }
