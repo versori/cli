@@ -142,7 +142,7 @@ versori projects variables list --project <project-id> [flags]
 Remove a dynamic-variable declaration (and its entry in the required[] list) from the
 project's DynamicVariablesSchema. Activations that previously set this key keep the value on
 their record but workflow code that reads it via ctx.activation.getVariable() will continue to
-return the stored value. Confirms before deleting unless --yes is passed.
+return the stored value. Confirms before deleting unless --yes or --confirm is passed.
 
 ```sh
 versori projects variables remove --project <project-id> --name <key> [--yes] [flags]
@@ -150,6 +150,7 @@ versori projects variables remove --project <project-id> --name <key> [--yes] [f
 
 
 **Flags:**
+* `--confirm`: Skip the confirmation prompt (same as --yes)
 * `-h`, `--help`: help for remove
 * `-n`, `--name`: Variable name to remove
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.

@@ -81,7 +81,7 @@ through the linked channel. The channel itself is not deleted; remove it separat
 
 If --notification-id is omitted, the CLI lists existing bindings for the environment and prompts
 you to pick one. If --environment is omitted, the CLI prompts you to pick an environment.
-Confirms before deleting unless --yes is passed.
+Confirms before deleting unless --yes or --confirm is passed.
 
 ```sh
 versori notifications project unlink --notification-id <id> --environment <name> [--project <project-id>] [--yes] [flags]
@@ -89,6 +89,7 @@ versori notifications project unlink --notification-id <id> --environment <name>
 
 
 **Flags:**
+* `--confirm`: Skip the confirmation prompt (same as --yes)
 * `--environment`: Name of the project environment the binding belongs to (e.g. production, staging)
 
 * `-h`, `--help`: help for unlink

@@ -281,7 +281,7 @@ Rules for the mutation tier:
 2. **Never guess the target.** Confirm the store/scope and key/prefix before any
    mutation. `wipe` refuses an empty prefix and only proceeds with `--confirm`
    (without it, it prints a dry-run count).
-3. **Non-interactive safety.** `set` / `delete` require `--yes` in non-TTY shells;
+3. **Non-interactive safety.** `set` / `delete` require `--yes` or `--confirm` in non-TTY shells;
    the CLI refuses otherwise.
 4. **Value encoding matches the SDK.** `kv set` JSON-encodes values the same way
    `ctx.openKv().set()` does, and the read commands unwrap that encoding by default

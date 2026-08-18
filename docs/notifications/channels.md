@@ -48,7 +48,7 @@ channel will stop firing (delete the bindings first with 'versori notifications 
 if you want a graceful tear-down).
 
 If --channel-id is omitted, the CLI shows a picker of existing channels. Confirms before deleting
-unless --yes is passed.
+unless --yes or --confirm is passed.
 
 ```sh
 versori notifications channels delete --channel-id <id> [--yes] [flags]
@@ -57,6 +57,7 @@ versori notifications channels delete --channel-id <id> [--yes] [flags]
 
 **Flags:**
 * `--channel-id`: ULID of the channel to delete (prompts a picker if omitted)
+* `--confirm`: Skip the confirmation prompt (same as --yes)
 * `-h`, `--help`: help for delete
 * `-y`, `--yes`: Skip the confirmation prompt
 

@@ -43,7 +43,7 @@ This removes the end-user record itself, not just an activation on one environme
 and embedded connections owned by that user are also removed by the platform.
 
 Pass --id (the user ULID) or --external-id (resolved client-side). Confirms before deleting
-unless --yes is passed; in a non-interactive shell --yes is required.
+unless --yes or --confirm is passed; in a non-interactive shell one of those flags is required.
 
 ```sh
 versori users delete (--id <ulid> | --external-id <id>) [--yes] [flags]
@@ -51,6 +51,7 @@ versori users delete (--id <ulid> | --external-id <id>) [--yes] [flags]
 
 
 **Flags:**
+* `--confirm`: Skip the confirmation prompt (same as --yes)
 * `-e`, `--external-id`: External ID of the end-user to delete (resolved to a ULID)
 * `-h`, `--help`: help for delete
 * `--id`: ULID of the end-user to delete

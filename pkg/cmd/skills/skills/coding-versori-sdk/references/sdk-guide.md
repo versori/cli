@@ -343,7 +343,7 @@ versori notifications project link \
 versori notifications project list
 ```
 
-To tear down: `versori notifications project unlink` removes a single link (channel survives); `versori notifications channels delete` removes the channel itself (and silently breaks any remaining links). Both prompt to confirm unless `--yes` is passed. Full flag reference: `references/cli-usage.md` (**Notification channels (email alerts)**).
+To tear down: `versori notifications project unlink` removes a single link (channel survives); `versori notifications channels delete` removes the channel itself (and silently breaks any remaining links). Both prompt to confirm unless `--yes` or `--confirm` is passed. Full flag reference: `references/cli-usage.md` (**Notification channels (email alerts)**).
 
 See [Creating Issues](#creating-issues) for the full `ctx.createIssue()` API.
 

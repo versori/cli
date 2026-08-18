@@ -64,7 +64,7 @@ WARNING: this mutates live workflow state. Only run it when explicitly asked to 
 key — never as a side-effect of debugging. This removes a single key only; to delete everything
 under a prefix use kv wipe.
 
-Confirms before deleting unless --yes is passed; in non-interactive shells --yes is required.
+Confirms before deleting unless --yes or --confirm is passed; in non-interactive shells one of those flags is required.
 
 ```sh
 versori kv delete (--store <id> | --scope <scope> ...) --key <a/b/c> [flags]
@@ -73,6 +73,7 @@ versori kv delete (--store <id> | --scope <scope> ...) --key <a/b/c> [flags]
 
 **Flags:**
 * `--activation-id`: Activation ID (optional; narrows project/execution scope).
+* `--confirm`: Skip the confirmation prompt (same as --yes)
 * `--environment`: Environment name, e.g. production (friendly mode).
 * `--execution-id`: Execution ID (required for --scope execution).
 * `--external-id`: End-user external ID (required for --scope user).
@@ -85,7 +86,7 @@ versori kv delete (--store <id> | --scope <scope> ...) --key <a/b/c> [flags]
 * `--scope`: Friendly scope: organization | workspace | project | user | execution.
 
 * `--store`: KV store ID (raw mode). Mutually exclusive with --scope.
-* `-y`, `--yes`: Skip the confirmation prompt.
+* `-y`, `--yes`: Skip the confirmation prompt
 
 
 
@@ -199,7 +200,7 @@ The value is JSON-encoded the same way the runtime SDK writes values, so workflo
 the key with ctx.openKv().get() round-trips correctly. A --value that parses as JSON keeps its type
 (object/array/number/bool); otherwise it is stored as a string.
 
-Confirms before writing unless --yes is passed; in non-interactive shells --yes is required.
+Confirms before writing unless --yes or --confirm is passed; in non-interactive shells one of those flags is required.
 
 ```sh
 versori kv set (--store <id> | --scope <scope> ...) --key <a/b/c> (--value <json> | --value-file <path>) [flags]
@@ -208,6 +209,7 @@ versori kv set (--store <id> | --scope <scope> ...) --key <a/b/c> (--value <json
 
 **Flags:**
 * `--activation-id`: Activation ID (optional; narrows project/execution scope).
+* `--confirm`: Skip the confirmation prompt (same as --yes)
 * `--environment`: Environment name, e.g. production (friendly mode).
 * `--execution-id`: Execution ID (required for --scope execution).
 * `--expire-in`: TTL in milliseconds (0 = no expiry).
@@ -224,7 +226,7 @@ versori kv set (--store <id> | --scope <scope> ...) --key <a/b/c> (--value <json
 * `--store`: KV store ID (raw mode). Mutually exclusive with --scope.
 * `--value`: Value to store (JSON when valid, otherwise a string).
 * `--value-file`: Read the value from a file instead of --value.
-* `-y`, `--yes`: Skip the confirmation prompt.
+* `-y`, `--yes`: Skip the confirmation prompt
 
 
 

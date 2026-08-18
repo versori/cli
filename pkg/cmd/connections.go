@@ -34,6 +34,8 @@ func newConnectionsCommand(c *config.ConfigFactory) *cobra.Command {
 	cmd.AddCommand(
 		connections.NewList(c),
 		connections.NewCreate(c),
+		connections.NewUnlink(c),
+		connections.NewDelete(c),
 	)
 
 	return cmd

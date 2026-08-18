@@ -4,7 +4,7 @@
 
 - **Project lifecycle**: `projects list/create/details`, `project sync/deploy`, `projects versions list/create/deploy`
 - **Systems & auth**: `systems create`, `systems add-auth-scheme`, `projects systems bootstrap/list/add/update-connection-template/list-connections/connect/delete-connection-template`
-- **Connections**: `connections create/list`
+- **Connections**: `connections create/list/unlink/delete`
 - **End-users & activations**: `users create/list/delete`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
 - **Dynamic-variable schema**: `projects variables list/add/update/remove/get/set`
 - **Assets**: `projects assets list/upload/download`
@@ -17,7 +17,7 @@
 
 ### Agent-safe (non-interactive) invocation
 
-Many commands open an interactive prompt when a flag or positional is omitted. **In non-TTY shells (CI, pipes, agent sandboxes) the prompt blocks on stdin and the command does not return.** Always pass the id/flag explicitly and add `--yes` on any command that also confirms before deleting.
+Many commands open an interactive prompt when a flag or positional is omitted. **In non-TTY shells (CI, pipes, agent sandboxes) the prompt blocks on stdin and the command does not return.** Always pass the id/flag explicitly and add `--yes` (or `--confirm` — same skip-prompt, not a dry-run) on any command that also confirms before deleting.
 
 | Command | Pass explicitly (omit → prompt blocks) | Source from |
 |---|---|---|
@@ -33,10 +33,12 @@ Many commands open an interactive prompt when a flag or positional is omitted. *
 | `versori projects users activate` | `--connection` per template + every required `--variable` | see the command's full entry below |
 | `versori systems create` | `--name`, `--domain`, `--template-base-url` | n/a (user-supplied) |
 | `versori users create` | `--display-name`, `--external-id` | n/a (user-supplied) |
-| `versori users delete` | `--id` or `--external-id`, plus `--yes` in non-interactive shells | `versori users list -o json` |
-| `versori notifications channels delete` | `--channel-id`, `--yes` | `versori notifications channels list -o json` |
+| `versori users delete` | `--id` or `--external-id`, plus `--yes` or `--confirm` in non-interactive shells | `versori users list -o json` |
+| `versori connections unlink` | `--id`, `--template-id`, `--yes` or `--confirm` | `versori connections list -o json` |
+| `versori connections delete` | `--id`, `--yes` or `--confirm` | `versori connections list -o json` |
+| `versori notifications channels delete` | `--channel-id`, `--yes` or `--confirm` | `versori notifications channels list -o json` |
 | `versori notifications project link` | `--channel-id`, `--environment` | `versori notifications channels list -o json` |
-| `versori notifications project unlink` | `--notification-id`, `--environment`, `--yes` | `versori notifications project list --project <id> -o json` |
+| `versori notifications project unlink` | `--notification-id`, `--environment`, `--yes` or `--confirm` | `versori notifications project list --project <id> -o json` |
 
 Rule of thumb: if `--help` shows an id/flag as optional but the command can't proceed without one, that's an interactive-prompt fallback — pass it explicitly.
 
@@ -188,6 +190,14 @@ List connections in the current organisation context. Output columns: `Connectio
 - `--system <id>` — show only connections on one system
 - `--end-user <ulid-or-external-id>` — show only embedded connections owned by one end-user. Accepts either an end-user ULID or your external ID; external IDs are resolved to a ULID client-side before the API call.
 
+### `versori connections unlink --id <connection-id> --template-id <ct-id> [--yes]`
+
+Remove the environment binding (the platform **Remove Connection** control on the active card). The connection stays in the org and can be **Use**d again. `--yes` or `--confirm` is required when there is no TTY.
+
+### `versori connections delete --id <connection-id> [--yes]`
+
+Delete the connection itself. `--yes` or `--confirm` is required when there is no TTY.
+
 ### `versori projects systems update-connection-template --project <id> --template <template-id> [--name <name>] [--dynamic] [--auth-scheme-config-id <id>]`
 
 Update a connection template (a.k.a. EnvironmentSystem) on a project. Toggles the `dynamic` flag, renames, or swaps the linked auth-scheme-config. Pass at least one update flag.
@@ -242,7 +252,7 @@ List all end-users in the current organisation.
 Delete an end-user from the current organisation (`DELETE /o/{organisation}/users/{user_id}`). This removes the end-user record, not just an activation on one environment.
 
 - `--id` is the platform ULID; `--external-id` is resolved client-side the same way `connections list --end-user` is.
-- Confirms in a TTY unless `--yes` is passed. Non-interactive shells (the VS Code extension, CI, agent sandboxes) **must** pass `--yes`.
+- Confirms in a TTY unless `--yes` or `--confirm` is passed (aliases; not a dry-run gate like `projects sync` or `kv wipe`). Non-interactive shells (the VS Code extension, CI, agent sandboxes) **must** pass one of those flags.
 
 ```bash
 versori users delete --id 01M0AF0HAX086WCVKPRPAZJJDB --yes
@@ -257,7 +267,7 @@ Alias: `versori projects activations list`.
 
 ### `versori projects users details --project <id> --environment <env> --external-id <user-external-id>`
 
-Show one activation in full, including the connections wired to each environment system and the dynamic-variable bag.
+Show one activation in full, including the connections wired to each environment system and the dynamic-variable bag. Connection identity is kept even when credential unions fail to decode; if GET omits connections, the CLI falls back to the end-user's connections list so the payload still includes bound credentials.
 
 Alias: `versori projects activations details`.
 
@@ -388,7 +398,7 @@ versori projects variables update --name feature_flags --type object --field new
 
 ### `versori projects variables remove --project <id> --name <key> [--yes]`
 
-Delete a variable from `properties` and (if present) from `required`. Confirms before deletion unless `--yes` is passed. Aliases: `rm`, `delete`. Activations that previously set the key keep the stored value on their record — only future validation changes.
+Delete a variable from `properties` and (if present) from `required`. Confirms before deletion unless `--yes` or `--confirm` is passed. Aliases: `rm`, `delete`. Activations that previously set the key keep the stored value on their record — only future validation changes.
 
 ### `versori projects variables get --project <id>` *(low-level)*
 
@@ -635,11 +645,11 @@ Fetch a single entry by key (read-only). In raw mode `--key` is the literal full
 
 ### `versori kv set (--store <id> | --scope <scope> ...) --key <a/b/c> (--value <json> | --value-file <path>)`
 
-**Mutation.** Write a value at a key. The value is JSON-encoded to match the SDK so workflow reads round-trip; a `--value` that parses as JSON keeps its type (object/array/number/bool), otherwise it is stored as a string. Read the value from a file with `--value-file`. Optional `--expire-in <ms>` (TTL) and `--if-not-exists`. Confirms before writing unless `--yes` is passed; `--yes` is required in non-interactive shells. **Agent: only run when explicitly asked to set a specific key.**
+**Mutation.** Write a value at a key. The value is JSON-encoded to match the SDK so workflow reads round-trip; a `--value` that parses as JSON keeps its type (object/array/number/bool), otherwise it is stored as a string. Read the value from a file with `--value-file`. Optional `--expire-in <ms>` (TTL) and `--if-not-exists`. Confirms before writing unless `--yes` or `--confirm` is passed; one of those flags is required in non-interactive shells. **Agent: only run when explicitly asked to set a specific key.**
 
 ### `versori kv delete (--store <id> | --scope <scope> ...) --key <a/b/c>`
 
-**Mutation.** Delete a single key (alias: `rm`). Confirms unless `--yes`; `--yes` required in non-TTY shells. Removes one key only — use `kv wipe` to delete a whole subtree. **Agent: only run when explicitly asked to delete a specific key.**
+**Mutation.** Delete a single key (alias: `rm`). Confirms unless `--yes` or `--confirm`; one of those flags is required in non-TTY shells. Removes one key only — use `kv wipe` to delete a whole subtree. **Agent: only run when explicitly asked to delete a specific key.**
 
 ### `versori kv wipe (--store <id> --prefix <segment>... | --scope <scope> ...) --confirm`
 
@@ -747,9 +757,9 @@ Channels are organisation-scoped — create once, bind to as many projects/envir
 
 ### `versori notifications channels delete --channel-id <id> [--yes]`
 
-Delete an org-scoped notification channel. Aliases: `rm`, `remove`. Omit `--channel-id` to get an interactive picker of existing channels by name. Confirms before deleting unless `--yes` is passed.
+Delete an org-scoped notification channel. Aliases: `rm`, `remove`. Omit `--channel-id` to get an interactive picker of existing channels by name. Confirms before deleting unless `--yes` or `--confirm` is passed.
 
-**Agent: always pass both `--channel-id` (from `versori notifications channels list -o json`) and `--yes`.**
+**Agent: always pass both `--channel-id` (from `versori notifications channels list -o json`) and `--yes` or `--confirm`.**
 
 **Project bindings using the deleted channel stop firing.** If you want a clean tear-down, unlink the bindings first with `versori notifications project unlink`.
 
@@ -790,9 +800,9 @@ versori notifications project link --channel-id 01KS2T... --environment producti
 
 ### `versori notifications project unlink --notification-id <id> --environment <name> [--project <project-id>] [--yes]`
 
-Remove a project-notification binding (stops alerts; the channel itself stays). Aliases: `rm`, `delete`. Omit `--notification-id` to pick an existing binding from a list by name. Confirms before deleting unless `--yes` is passed. The channel is not deleted; remove it separately with `versori notifications channels delete`.
+Remove a project-notification binding (stops alerts; the channel itself stays). Aliases: `rm`, `delete`. Omit `--notification-id` to pick an existing binding from a list by name. Confirms before deleting unless `--yes` or `--confirm` is passed. The channel is not deleted; remove it separately with `versori notifications channels delete`.
 
-**Agent: always pass `--notification-id`, `--environment`, and `--yes`.** Source `--notification-id` from `versori notifications project list --project <id> -o json` (the binding's `id`); `--environment` is the human-readable env name.
+**Agent: always pass `--notification-id`, `--environment`, and `--yes` or `--confirm`.** Source `--notification-id` from `versori notifications project list --project <id> -o json` (the binding's `id`); `--environment` is the human-readable env name.
 
 ```bash
 versori notifications project unlink --notification-id 01KS2TX49C... --environment production --yes

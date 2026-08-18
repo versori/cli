@@ -23,6 +23,7 @@ import (
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
 	"github.com/versori/cli/pkg/cmd/elements"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/ulid"
 	"github.com/versori/cli/pkg/utils"
 )
@@ -47,14 +48,14 @@ This removes the end-user record itself, not just an activation on one environme
 and embedded connections owned by that user are also removed by the platform.
 
 Pass --id (the user ULID) or --external-id (resolved client-side). Confirms before deleting
-unless --yes is passed; in a non-interactive shell --yes is required.`,
+unless --yes or --confirm is passed; in a non-interactive shell one of those flags is required.`,
 		Run: d.Run,
 	}
 
-	flags := cmd.Flags()
-	flags.StringVar(&d.id, "id", "", "ULID of the end-user to delete")
-	flags.StringVarP(&d.externalId, "external-id", "e", "", "External ID of the end-user to delete (resolved to a ULID)")
-	flags.BoolVarP(&d.yes, "yes", "y", false, "Skip the confirmation prompt")
+	f := cmd.Flags()
+	f.StringVar(&d.id, "id", "", "ULID of the end-user to delete")
+	f.StringVarP(&d.externalId, "external-id", "e", "", "External ID of the end-user to delete (resolved to a ULID)")
+	flags.AddSkipPromptFlags(f, &d.yes)
 
 	return cmd
 }
@@ -85,7 +86,7 @@ func (d *deleteUser) Run(_ *cobra.Command, _ []string) {
 	if !d.yes {
 		if !isInteractive() {
 			utils.NewExitError().
-				WithMessage("refusing to delete a user without confirmation in a non-interactive shell; pass --yes to proceed").
+				WithMessage("refusing to delete a user without confirmation in a non-interactive shell; pass --yes or --confirm to proceed").
 				Done()
 		}
 
