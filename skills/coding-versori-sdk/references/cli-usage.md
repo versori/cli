@@ -5,7 +5,7 @@
 - **Project lifecycle**: `projects list/create/details`, `project sync/deploy`, `projects versions list/create/deploy`
 - **Systems & auth**: `systems create`, `systems add-auth-scheme`, `projects systems bootstrap/list/add/update-connection-template/list-connections/connect/delete-connection-template`
 - **Connections**: `connections create/list`
-- **End-users & activations**: `users create/list`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
+- **End-users & activations**: `users create/list/delete`, `projects users activate/deactivate/list/details/set-variable` (aliased under `projects activations`)
 - **Dynamic-variable schema**: `projects variables list/add/update/remove/get/set`
 - **Assets**: `projects assets list/upload/download`
 - **Observability & alerts**: `projects logs`, `projects issues list/get/update`, `notifications channels list/create/delete`, `notifications project list/link/unlink`
@@ -33,6 +33,7 @@ Many commands open an interactive prompt when a flag or positional is omitted. *
 | `versori projects users activate` | `--connection` per template + every required `--variable` | see the command's full entry below |
 | `versori systems create` | `--name`, `--domain`, `--template-base-url` | n/a (user-supplied) |
 | `versori users create` | `--display-name`, `--external-id` | n/a (user-supplied) |
+| `versori users delete` | `--id` or `--external-id`, plus `--yes` in non-interactive shells | `versori users list -o json` |
 | `versori notifications channels delete` | `--channel-id`, `--yes` | `versori notifications channels list -o json` |
 | `versori notifications project link` | `--channel-id`, `--environment` | `versori notifications channels list -o json` |
 | `versori notifications project unlink` | `--notification-id`, `--environment`, `--yes` | `versori notifications project list --project <id> -o json` |
@@ -235,6 +236,18 @@ Create an org-scoped end-user. `external-id` is your handle (anything stable per
 ### `versori users list`
 
 List all end-users in the current organisation.
+
+### `versori users delete (--id <ulid> | --external-id <id>) [--yes]`
+
+Delete an end-user from the current organisation (`DELETE /o/{organisation}/users/{user_id}`). This removes the end-user record, not just an activation on one environment.
+
+- `--id` is the platform ULID; `--external-id` is resolved client-side the same way `connections list --end-user` is.
+- Confirms in a TTY unless `--yes` is passed. Non-interactive shells (the VS Code extension, CI, agent sandboxes) **must** pass `--yes`.
+
+```bash
+versori users delete --id 01M0AF0HAX086WCVKPRPAZJJDB --yes
+versori users delete --external-id testtest --yes
+```
 
 ### `versori projects users list --project <id> --environment <env>`
 

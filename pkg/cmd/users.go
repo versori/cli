@@ -32,6 +32,7 @@ func newUsersCommand(c *config.ConfigFactory) *cobra.Command {
 
 	cmd.AddCommand(userscmd.NewList(c))
 	cmd.AddCommand(userscmd.NewCreate(c))
+	cmd.AddCommand(userscmd.NewDelete(c))
 
 	return cmd
 }
