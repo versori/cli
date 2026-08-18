@@ -21,10 +21,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/versori/cli/pkg/cmd/flags"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
+	cmdflags "github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -32,7 +32,7 @@ import (
 type updateExecutionPool struct {
 	configFactory    *config.ConfigFactory
 	environment      string
-	projectId        flags.ProjectId
+	projectId        cmdflags.ProjectId
 	executionPool    string
 	skipConfirmation bool
 }
@@ -59,7 +59,7 @@ Example:
 	up.projectId.SetFlag(flags)
 	flags.StringVar(&up.environment, "environment", "", "The name of the environment to update")
 	flags.StringVar(&up.executionPool, "execution-pool", "", "The name of the new execution pool")
-	flags.BoolVarP(&up.skipConfirmation, "yes", "y", false, "Skip confirmation prompt")
+	cmdflags.AddSkipPromptFlags(flags, &up.skipConfirmation)
 
 	_ = cmd.MarkFlagRequired("environment")
 	_ = cmd.MarkFlagRequired("execution-pool")
@@ -70,7 +70,7 @@ Example:
 func (u *updateExecutionPool) Run(cmd *cobra.Command, args []string) {
 	projectId := u.projectId.GetFlagOrDie(".")
 
-	// Show warning and prompt for confirmation unless --yes flag is provided
+	// Show warning and prompt for confirmation unless --yes / --confirm is provided
 	if !u.skipConfirmation {
 		fmt.Println("\n   WARNING: Changing the execution pool will change the environment's public URL.")
 		fmt.Println("   If the environment is running, it will be suspended first.")

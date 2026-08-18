@@ -87,12 +87,13 @@ versori projects environments update-execution-pool --environment <environment-i
 
 
 **Flags:**
+* `--confirm`: Skip the confirmation prompt (same as --yes)
 * `--environment`: The name of the environment to update
 * `--execution-pool`: The name of the new execution pool
 * `-h`, `--help`: help for update-execution-pool
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
 
-* `-y`, `--yes`: Skip confirmation prompt
+* `-y`, `--yes`: Skip the confirmation prompt
 
 
 

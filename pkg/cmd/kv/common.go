@@ -278,7 +278,7 @@ func kvPath(storeID, op string) string {
 
 // ensureWipePrefixSafe rejects prefixes that would cascade-delete an entire store. The backend
 // matches a cascade delete with a prefix LIKE, so an empty prefix — or one containing an empty
-// segment (e.g. from `--prefix ''`) — serialises to a match-everything pattern. A length check
+// segment (e.g. from `--prefix ”`) — serialises to a match-everything pattern. A length check
 // alone is not enough because []string{""} has length 1 but joins to "".
 func ensureWipePrefixSafe(prefix []string) error {
 	if len(prefix) == 0 {
@@ -466,7 +466,7 @@ func isInteractive() bool {
 }
 
 // confirmOrAbort gates a mutation: skipped when yes is set; in a TTY it prompts; otherwise it
-// exits asking for --yes so an agent or script never mutates KV by accident.
+// exits asking for --yes or --confirm so an agent or script never mutates KV by accident.
 func confirmOrAbort(yes bool, prompt string) {
 	if yes {
 		return
@@ -474,7 +474,7 @@ func confirmOrAbort(yes bool, prompt string) {
 
 	if !isInteractive() {
 		utils.NewExitError().
-			WithMessage("refusing to mutate KV without confirmation in a non-interactive shell; pass --yes to proceed").
+			WithMessage("refusing to mutate KV without confirmation in a non-interactive shell; pass --yes or --confirm to proceed").
 			Done()
 	}
 

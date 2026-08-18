@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -53,7 +54,7 @@ The value is JSON-encoded the same way the runtime SDK writes values, so workflo
 the key with ctx.openKv().get() round-trips correctly. A --value that parses as JSON keeps its type
 (object/array/number/bool); otherwise it is stored as a string.
 
-Confirms before writing unless --yes is passed; in non-interactive shells --yes is required.`,
+Confirms before writing unless --yes or --confirm is passed; in non-interactive shells one of those flags is required.`,
 		Run: s.Run,
 	}
 
@@ -64,7 +65,7 @@ Confirms before writing unless --yes is passed; in non-interactive shells --yes 
 	f.StringVar(&s.valueFile, "value-file", "", "Read the value from a file instead of --value.")
 	f.Int64Var(&s.expireIn, "expire-in", 0, "TTL in milliseconds (0 = no expiry).")
 	f.BoolVar(&s.ifNotExists, "if-not-exists", false, "Only set if the key does not already exist.")
-	f.BoolVarP(&s.yes, "yes", "y", false, "Skip the confirmation prompt.")
+	flags.AddSkipPromptFlags(f, &s.yes)
 
 	_ = cmd.MarkFlagRequired("key")
 

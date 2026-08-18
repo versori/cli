@@ -41,14 +41,14 @@ func NewRemove(c *config.ConfigFactory) *cobra.Command {
 		Long: `Remove a dynamic-variable declaration (and its entry in the required[] list) from the
 project's DynamicVariablesSchema. Activations that previously set this key keep the value on
 their record but workflow code that reads it via ctx.activation.getVariable() will continue to
-return the stored value. Confirms before deleting unless --yes is passed.`,
+return the stored value. Confirms before deleting unless --yes or --confirm is passed.`,
 		Run: r.Run,
 	}
 
 	f := cmd.Flags()
 	r.projectId.SetFlag(f)
 	f.StringVarP(&r.name, "name", "n", "", "Variable name to remove")
-	f.BoolVarP(&r.yes, "yes", "y", false, "Skip the confirmation prompt")
+	flags.AddSkipPromptFlags(f, &r.yes)
 
 	_ = cmd.MarkFlagRequired("name")
 

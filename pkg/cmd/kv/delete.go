@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -47,14 +48,14 @@ WARNING: this mutates live workflow state. Only run it when explicitly asked to 
 key — never as a side-effect of debugging. This removes a single key only; to delete everything
 under a prefix use kv wipe.
 
-Confirms before deleting unless --yes is passed; in non-interactive shells --yes is required.`,
+Confirms before deleting unless --yes or --confirm is passed; in non-interactive shells one of those flags is required.`,
 		Run: d.Run,
 	}
 
 	f := cmd.Flags()
 	d.scope.addFlags(f)
 	f.StringVar(&d.key, "key", "", "Key to delete (slash-delimited).")
-	f.BoolVarP(&d.yes, "yes", "y", false, "Skip the confirmation prompt.")
+	flags.AddSkipPromptFlags(f, &d.yes)
 
 	_ = cmd.MarkFlagRequired("key")
 

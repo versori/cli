@@ -48,14 +48,14 @@ through the linked channel. The channel itself is not deleted; remove it separat
 
 If --notification-id is omitted, the CLI lists existing bindings for the environment and prompts
 you to pick one. If --environment is omitted, the CLI prompts you to pick an environment.
-Confirms before deleting unless --yes is passed.`,
+Confirms before deleting unless --yes or --confirm is passed.`,
 		Run: u.Run,
 	}
 
 	u.projectId.SetFlag(cmd.Flags())
 	cmd.Flags().StringVar(&u.notificationId, "notification-id", "", "ULID of the project-notification binding to remove")
 	cmd.Flags().StringVar(&u.envName, "environment", "", "Name of the project environment the binding belongs to (e.g. production, staging)")
-	cmd.Flags().BoolVarP(&u.yes, "yes", "y", false, "Skip the confirmation prompt")
+	flags.AddSkipPromptFlags(cmd.Flags(), &u.yes)
 
 	return cmd
 }
@@ -85,7 +85,7 @@ func (u *unlink) Run(cmd *cobra.Command, _ []string) {
 	err := u.configFactory.
 		NewRequest().
 		WithMethod(http.MethodDelete).
-		WithPath("projects/" + projectId + "/notifications/" + u.notificationId).
+		WithPath("projects/"+projectId+"/notifications/"+u.notificationId).
 		WithQueryParam("env_id", envId).
 		Do()
 	if err != nil {
@@ -199,7 +199,7 @@ func (u *unlink) fetchBindings(projectId, envId string) []v1.ProjectNotification
 		NewRequest().
 		WithMethod(http.MethodGet).
 		Into(&resp).
-		WithPath("projects/" + projectId + "/notifications").
+		WithPath("projects/"+projectId+"/notifications").
 		WithQueryParam("env_id", envId).
 		Do()
 	if err != nil {

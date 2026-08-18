@@ -22,6 +22,7 @@ import (
 	v1 "github.com/versori/cli/pkg/api/v1"
 	"github.com/versori/cli/pkg/cmd/config"
 	"github.com/versori/cli/pkg/cmd/elements"
+	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
 
@@ -43,12 +44,12 @@ channel will stop firing (delete the bindings first with 'versori notifications 
 if you want a graceful tear-down).
 
 If --channel-id is omitted, the CLI shows a picker of existing channels. Confirms before deleting
-unless --yes is passed.`,
+unless --yes or --confirm is passed.`,
 		Run: d.Run,
 	}
 
 	cmd.Flags().StringVar(&d.channelId, "channel-id", "", "ULID of the channel to delete (prompts a picker if omitted)")
-	cmd.Flags().BoolVarP(&d.yes, "yes", "y", false, "Skip the confirmation prompt")
+	flags.AddSkipPromptFlags(cmd.Flags(), &d.yes)
 
 	return cmd
 }

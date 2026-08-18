@@ -10,7 +10,9 @@ description: "Manage connections"
 | Subcommand | Description |
 |---|---|
 | `create` | Create a new connection to a connection template |
+| `delete` | Delete a connection |
 | `list` | Lists connections for the current organisation context |
+| `unlink` | Unlink a connection from an environment template |
 
 ---
 
@@ -56,6 +58,30 @@ versori connections create --project <project-id> --environment <environment-nam
 
 ---
 
+### `versori connections delete`
+
+
+Delete a connection (DELETE /o/\{organisation\}/connections/\{id\}).
+
+This removes the connection itself. Unlink it from an environment first if you
+only want to clear the active connection. Pass --yes or --confirm in non-interactive shells;
+the VS Code extension always passes --yes after its own confirmation modal.
+
+```sh
+versori connections delete --id <connection-id> [--yes] [flags]
+```
+
+
+**Flags:**
+* `--confirm`: Skip the confirmation prompt (same as --yes)
+* `-h`, `--help`: help for delete
+* `--id`: ULID of the connection to delete
+* `-y`, `--yes`: Skip the confirmation prompt
+
+
+
+---
+
 ### `versori connections list`
 
 
@@ -71,6 +97,30 @@ versori connections list [flags]
 
 * `-h`, `--help`: help for list
 * `--system`: Filter by system ID
+
+
+
+---
+
+### `versori connections unlink`
+
+
+Unlink a connection from an environment (DELETE /o/\{organisation\}/connections/\{id\}/link).
+
+The connection itself is kept. Pass --yes or --confirm in non-interactive shells; the VS Code
+extension always passes --yes after its own confirmation modal.
+
+```sh
+versori connections unlink --id <connection-id> --template-id <template-id> [--yes] [flags]
+```
+
+
+**Flags:**
+* `--confirm`: Skip the confirmation prompt (same as --yes)
+* `-h`, `--help`: help for unlink
+* `--id`: ULID of the connection to unlink
+* `--template-id`: Connection template ID (environment system) to unlink from
+* `-y`, `--yes`: Skip the confirmation prompt
 
 
 
