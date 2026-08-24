@@ -243,3 +243,106 @@ func TestPluralFiles(t *testing.T) {
 func ptr(s string) *string {
 	return &s
 }
+
+// A version id must route sync onto the same endpoint `projects files
+// --version` reads, never the project's CurrentFiles.
+func TestVersionFilesPathMatchesFilesCommand(t *testing.T) {
+	got := versionFilesPath("01PROJECT", "01VERSION")
+	want := "o/:organisation/projects/01PROJECT/versions/01VERSION/files"
+
+	if got != want {
+		t.Fatalf("versionFilesPath() = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeVersionId(t *testing.T) {
+	tests := []struct {
+		name   string
+		raw    string
+		want   string
+		wantOK bool
+	}{
+		{name: "flag omitted means current files", raw: "", want: "", wantOK: true},
+		{name: "plain id", raw: "01VERSION", want: "01VERSION", wantOK: true},
+		{name: "surrounding whitespace is trimmed", raw: "  01VERSION\n", want: "01VERSION", wantOK: true},
+		{name: "whitespace only is an error, not current files", raw: "   ", want: "", wantOK: false},
+		{name: "tab only is an error", raw: "\t", want: "", wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := normalizeVersionId(tt.raw)
+			if got != tt.want || ok != tt.wantOK {
+				t.Fatalf("normalizeVersionId(%q) = (%q, %v), want (%q, %v)", tt.raw, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+// The pin rule, stated once: only a real sync without --no-pin re-pins.
+func TestShouldWritePin(t *testing.T) {
+	tests := []struct {
+		name   string
+		dryRun bool
+		noPin  bool
+		want   bool
+	}{
+		{name: "live sync re-pins", dryRun: false, noPin: false, want: true},
+		{name: "live sync with --no-pin does not", dryRun: false, noPin: true, want: false},
+		{name: "dry-run never pins", dryRun: true, noPin: false, want: false},
+		{name: "dry-run with --no-pin never pins", dryRun: true, noPin: true, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldWritePin(tt.dryRun, tt.noPin); got != tt.want {
+				t.Fatalf("shouldWritePin(dryRun=%v, noPin=%v) = %v, want %v", tt.dryRun, tt.noPin, got, tt.want)
+			}
+		})
+	}
+}
+
+// --no-pin must not delete a .versori that is already in the target. The
+// deletion set is what sync would remove, so .versori must never be in it.
+func TestGetExistingFilesNeverOffersVersoriForDeletion(t *testing.T) {
+	dir := t.TempDir()
+
+	for _, rel := range []string{".versori", "index.ts"} {
+		if err := os.WriteFile(filepath.Join(dir, rel), []byte("x"), 0o600); err != nil {
+			t.Fatalf("failed to seed %s: %v", rel, err)
+		}
+	}
+
+	existing, _ := getExistingFiles(dir)
+
+	if _, found := existing[".versori"]; found {
+		t.Fatal(".versori was offered up for deletion")
+	}
+
+	if _, found := existing["index.ts"]; !found {
+		t.Fatal("a normal project file was missing from the deletion set")
+	}
+}
+
+// The flags exist, are independent, and default to today's behaviour.
+func TestNewSyncRegistersVersionAndNoPin(t *testing.T) {
+	cmd := NewSync(nil)
+
+	version := cmd.Flags().Lookup("version")
+	if version == nil {
+		t.Fatal("--version is not registered on projects sync")
+	}
+
+	if version.DefValue != "" {
+		t.Fatalf("--version default = %q, want empty (current files)", version.DefValue)
+	}
+
+	noPin := cmd.Flags().Lookup("no-pin")
+	if noPin == nil {
+		t.Fatal("--no-pin is not registered on projects sync")
+	}
+
+	if noPin.DefValue != "false" {
+		t.Fatalf("--no-pin default = %q, want \"false\"", noPin.DefValue)
+	}
+}
