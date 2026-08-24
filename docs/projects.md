@@ -320,10 +320,12 @@ Sync pulls the project files to the local directory. The --project flag is only 
 
 Sync runs in dry-run mode by default and only prints what would be created, updated, or deleted. Pass --confirm to perform the real sync (which overwrites local changes and re-pins .versori).
 
+Pass --version \<id\> to sync a specific version's files instead of the project's current files. Pass --no-pin to perform the sync without writing .versori, which is how a throwaway comparison checkout avoids claiming the directory.
+
 WARNING: When --confirm is set, this will overwrite any local changes and delete any local files that are not part of the remote project.
 
 ```sh
-versori projects sync [--project <project-id>] [--directory <directory>]
+versori projects sync [--project <project-id>] [--directory <directory>] [--version <version-id>] [--no-pin]
 ```
 
 
@@ -336,7 +338,11 @@ versori projects sync [--project <project-id>] [--directory <directory>]
 * `--dry-run`: Force dry-run (the default when --confirm is omitted). Kept for explicitness; if both --dry-run and --confirm are set, --dry-run wins.
 
 * `-h`, `--help`: help for sync
+* `--no-pin`: Do not write .versori into the target directory. An existing .versori is left untouched.
+
 * `--project`: Project ID; defaults from .versori when inside a synced project directory.
+
+* `--version`: Sync the files from a specific version id instead of the project's current files. Assets are always the project's current assets.
 
 
 

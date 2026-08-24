@@ -26,7 +26,7 @@ Many commands open an interactive prompt when a flag or positional is omitted. *
 | `versori context rm <context-name>` | positional `<context-name>` | `versori context list` |
 | `versori projects create` | `--name` | n/a (user-supplied) |
 | `versori projects details <project-id>` | positional `<project-id>` | `versori projects list -o json` |
-| `versori projects sync` | `--confirm` once the dry-run pass is reviewed (dry-run is the default) | n/a |
+| `versori projects sync` | `--confirm` once the dry-run pass is reviewed (dry-run is the default); optionally `--version <id>` for a snapshot and `--no-pin` to skip writing `.versori` | `versori projects versions list --project <id> -o json` for `--version` |
 | `versori projects versions create` | `--project` (when not in a `.versori` dir) | `versori projects list -o json` |
 | `versori projects versions pull` | `--project`, `--version` | `versori projects list -o json` / `versori projects versions list --project <id> -o json` |
 | `versori projects variables add` | `--name` (+ `--type` / `--field` for structural shapes) | see the command's full entry below |
@@ -87,6 +87,12 @@ Use this when the user wants to pull down an existing project to edit locally. A
 **`sync` is dry-run by default.** Without `--confirm`, sync only prints the create / update / delete diff and exits — no files are written, `.versori` is not re-pinned. Pass `--confirm` to perform the actual sync. `--dry-run` is still accepted for explicitness; if both `--dry-run` and `--confirm` are passed, `--dry-run` wins.
 
 **Agent workflow:** always run sync without `--confirm` first, show the diff (especially deletions) to the user, and only re-invoke with `--confirm` once they're happy — or when the diff is clearly safe (no deletions, only expected new/updated files from a previous deploy). The default dry-run is the safety net; never call `versori projects sync --confirm` as a first step against an unknown directory state.
+
+**Optional `--version <id>`.** Omitted, sync writes the project's current files — the behaviour above. Given a version id, sync writes that version's files instead, using the same replace-and-delete semantics (so the folder ends up as a faithful checkout of that snapshot). The id must be a version **id**, not a name; a bad or blank id fails rather than prompting. `--assets` is always the project's *current* assets, never assets as of that version. Get ids from `versori projects versions list --project <id> -o json`.
+
+**Optional `--no-pin`.** A live sync normally (re)writes `.versori` into the target directory. `--no-pin` performs the same sync without writing it, so a throwaway checkout does not claim the directory as a project. It never *deletes* an existing `.versori`. Dry-runs never wrote `.versori`, so `--no-pin` changes nothing there.
+
+`--version` and `--no-pin` are independent. `versori projects sync --version <id> --confirm --no-pin --directory <dir>` is the non-interactive "give me this snapshot on disk, unpinned" form the VS Code extension's Compare Version uses.
 
 ### `versori projects systems list --project <id> --environment <env>`
 
