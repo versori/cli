@@ -92,7 +92,7 @@ Use this when the user wants to pull down an existing project to edit locally. A
 
 **Optional `--no-pin`.** A live sync normally (re)writes `.versori` into the target directory. `--no-pin` performs the same sync without writing it, so a throwaway checkout does not claim the directory as a project. It never *deletes* an existing `.versori`. Dry-runs never wrote `.versori`, so `--no-pin` changes nothing there.
 
-`--version` and `--no-pin` are independent. `versori projects sync --version <id> --confirm --no-pin --directory <dir>` is the non-interactive "give me this snapshot on disk, unpinned" form the VS Code extension's Compare Version uses.
+`--version` and `--no-pin` are independent. `versori projects sync --project <id> --directory <dir> --version <version-id> --confirm --no-pin` is the non-interactive "give me this snapshot on disk, unpinned" form the VS Code extension's Compare Version uses; `--project` is required because a fresh throwaway directory has no `.versori` to resolve it from.
 
 ### `versori projects systems list --project <id> --environment <env>`
 

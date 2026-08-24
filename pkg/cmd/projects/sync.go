@@ -550,10 +550,11 @@ func versionFilesPath(projectId, versionId string) string {
 	return "o/:organisation/projects/" + projectId + "/versions/" + versionId + "/files"
 }
 
-// normalizeVersionId trims a --version value and reports whether a version was
-// actually requested. A value that is only whitespace is a mistake, not a
-// request for the current files: sync fails rather than silently syncing
-// something else.
+// normalizeVersionId trims a --version value and reports whether that value is
+// usable. The returned id is empty in two different situations, which the bool
+// separates: an omitted flag is valid and means "sync the current files"
+// (`"", true`), while a whitespace-only value is a mistake and fails
+// (`"", false`) rather than silently syncing something else.
 func normalizeVersionId(raw string) (string, bool) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
