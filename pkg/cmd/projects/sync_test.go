@@ -19,6 +19,8 @@ import (
 	"testing"
 
 	v1 "github.com/versori/cli/pkg/api/v1"
+	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/flags"
 )
 
 func TestUpdateFileDryRunAction(t *testing.T) {
@@ -252,6 +254,67 @@ func TestVersionFilesPathMatchesFilesCommand(t *testing.T) {
 
 	if got != want {
 		t.Fatalf("versionFilesPath() = %q, want %q", got, want)
+	}
+}
+
+func TestSyncRunConsumesSelectedFileSource(t *testing.T) {
+	tests := []struct {
+		name         string
+		version      string
+		wantPath     string
+		wantFilename string
+	}{
+		{
+			name:         "omitted version selects CurrentFiles",
+			wantPath:     "o/:organisation/projects/01PROJECT",
+			wantFilename: "current.ts",
+		},
+		{
+			name:         "version selects version files",
+			version:      "01VERSION",
+			wantPath:     "o/:organisation/projects/01PROJECT/versions/01VERSION/files",
+			wantFilename: "version.ts",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			s := &Sync{
+				projectId: flags.ProjectId("01PROJECT"),
+				directory: dir,
+				confirm:   true,
+				version:   tt.version,
+				noPin:     true,
+				loadSource: func(_ *config.ConfigFactory, source syncFileSource) ([]v1.File, error) {
+					if source.path != tt.wantPath {
+						t.Fatalf("selected path = %q, want %q", source.path, tt.wantPath)
+					}
+
+					file := v1.File{Filename: tt.wantFilename, Content: tt.name}
+					switch response := source.response.(type) {
+					case *v1.Project:
+						response.CurrentFiles.Files = []v1.File{file}
+					case *v1.Files:
+						response.Files = []v1.File{file}
+					default:
+						t.Fatalf("unexpected response type %T", source.response)
+					}
+
+					return source.files(), nil
+				},
+			}
+
+			s.Run(nil, nil)
+
+			got, err := os.ReadFile(filepath.Join(dir, tt.wantFilename))
+			if err != nil {
+				t.Fatalf("Run did not consume selected files: %v", err)
+			}
+			if string(got) != tt.name {
+				t.Fatalf("written content = %q, want %q", got, tt.name)
+			}
+		})
 	}
 }
 

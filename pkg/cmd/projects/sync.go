@@ -41,6 +41,19 @@ type Sync struct {
 	confirm       bool
 	version       string
 	noPin         bool
+	loadSource    syncFileLoader
+}
+
+type syncFileLoader func(*config.ConfigFactory, syncFileSource) ([]v1.File, error)
+
+// syncFileSource binds an endpoint, response type, and extraction rule. Run
+// consumes this as one unit so selecting version files cannot still extract
+// CurrentFiles (or vice versa).
+type syncFileSource struct {
+	path         string
+	response     any
+	files        func() []v1.File
+	errorMessage string
 }
 
 func NewSync(c *config.ConfigFactory) *cobra.Command {
@@ -105,36 +118,15 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 		utils.NewExitError().WithMessage("--version requires a version id").Done()
 	}
 
-	var sourceFiles []v1.File
+	source := selectSyncFileSource(projectId, versionId)
+	loader := s.loadSource
+	if loader == nil {
+		loader = loadSyncFileSource
+	}
 
-	if versionId == "" {
-		project := v1.Project{}
-
-		err = s.configFactory.
-			NewRequest().
-			WithMethod(http.MethodGet).
-			Into(&project).
-			WithPath("o/:organisation/projects/" + projectId).
-			Do()
-		if err != nil {
-			utils.NewExitError().WithMessage("failed to get project").WithReason(err).Done()
-		}
-
-		sourceFiles = project.CurrentFiles.Files
-	} else {
-		files := v1.Files{}
-
-		err = s.configFactory.
-			NewRequest().
-			WithMethod(http.MethodGet).
-			Into(&files).
-			WithPath(versionFilesPath(projectId, versionId)).
-			Do()
-		if err != nil {
-			utils.NewExitError().WithMessage("failed to get version files").WithReason(err).Done()
-		}
-
-		sourceFiles = files.Files
+	sourceFiles, err := loader(s.configFactory, source)
+	if err != nil {
+		utils.NewExitError().WithMessage(source.errorMessage).WithReason(err).Done()
 	}
 
 	existing, dirs := getExistingFiles(fullPath)
@@ -191,6 +183,42 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 	if err := versorifile.Write(versoriPath, &versorifile.VersoriFile{ProjectId: projectId, Context: s.configFactory.Context.Name}); err != nil {
 		utils.NewExitError().WithMessage("failed to write .versori").WithReason(err).Done()
 	}
+}
+
+func selectSyncFileSource(projectId, versionId string) syncFileSource {
+	if versionId == "" {
+		project := &v1.Project{}
+
+		return syncFileSource{
+			path:         "o/:organisation/projects/" + projectId,
+			response:     project,
+			files:        func() []v1.File { return project.CurrentFiles.Files },
+			errorMessage: "failed to get project",
+		}
+	}
+
+	files := &v1.Files{}
+
+	return syncFileSource{
+		path:         versionFilesPath(projectId, versionId),
+		response:     files,
+		files:        func() []v1.File { return files.Files },
+		errorMessage: "failed to get version files",
+	}
+}
+
+func loadSyncFileSource(configFactory *config.ConfigFactory, source syncFileSource) ([]v1.File, error) {
+	err := configFactory.
+		NewRequest().
+		WithMethod(http.MethodGet).
+		Into(source.response).
+		WithPath(source.path).
+		Do()
+	if err != nil {
+		return nil, err
+	}
+
+	return source.files(), nil
 }
 
 func (s *Sync) syncAssets(projectId, fullPath string) {
