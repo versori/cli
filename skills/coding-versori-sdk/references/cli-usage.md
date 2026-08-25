@@ -92,7 +92,7 @@ Use this when the user wants to pull down an existing project to edit locally. A
 
 **Optional `--no-pin`.** A live sync normally (re)writes `.versori` into the target directory. `--no-pin` performs the same sync without writing it, so a throwaway checkout does not claim the directory as a project. It never *deletes* an existing `.versori`. Dry-runs never wrote `.versori`, so `--no-pin` changes nothing there.
 
-`--version` and `--no-pin` are independent. `versori projects sync --project <id> --directory <dir> --version <version-id> --confirm --no-pin` is the non-interactive "give me this snapshot on disk, unpinned" form the VS Code extension's Compare Version uses; `--project` is required because a fresh throwaway directory has no `.versori` to resolve it from.
+`--version` and `--no-pin` are independent. `versori projects sync --project <id> --directory <dir> --version <version-id> --confirm --no-pin` is the non-interactive "give me this snapshot on disk, unpinned" form; `--project` is required because a fresh throwaway directory has no `.versori` to resolve it from.
 
 ### `versori projects systems list --project <id> --environment <env>`
 
@@ -258,7 +258,7 @@ List all end-users in the current organisation.
 Delete an end-user from the current organisation (`DELETE /o/{organisation}/users/{user_id}`). This removes the end-user record, not just an activation on one environment.
 
 - `--id` is the platform ULID; `--external-id` is resolved client-side the same way `connections list --end-user` is.
-- Confirms in a TTY unless `--yes` or `--confirm` is passed (aliases; not a dry-run gate like `projects sync` or `kv wipe`). Non-interactive shells (the VS Code extension, CI, agent sandboxes) **must** pass one of those flags.
+- Confirms in a TTY unless `--yes` or `--confirm` is passed (aliases; not a dry-run gate like `projects sync` or `kv wipe`). Non-interactive shells (CI, agent sandboxes) **must** pass one of those flags.
 
 ```bash
 versori users delete --id 01M0AF0HAX086WCVKPRPAZJJDB --yes

@@ -149,7 +149,7 @@ func (l *detailsActivation) Run(cmd *cobra.Command, args []string) {
 // parseActivationDetails reads a GET-activation body without requiring the
 // generated Connection/Credential union to decode. Credential bags on embedded
 // connections are often sparse or use scheme types the CLI types don't model;
-// failing the whole details command on that left VS Code with an empty
+// failing the whole details command on that left callers with an empty
 // connections list even when the activation payload named them.
 func parseActivationDetails(raw []byte) (bigActivation, error) {
 	var dto struct {
@@ -203,8 +203,8 @@ func parseActivationDetails(raw []byte) (bigActivation, error) {
 // resolveDetailConnections prefers the connections bound on the activation.
 // GetActivation treats a failed connection load as non-fatal and omits the
 // field; the UI then lists the end-user's embedded connections instead. Mirror
-// that fallback so `activations details` (and the VS Code panel that shells
-// out to it) does not render "no connections" for an activated external user.
+// that fallback so `activations details` does not render "no connections"
+// for an activated external user.
 func resolveDetailConnections(bound, fallback []v1.Connection) []v1.Connection {
 	if len(bound) > 0 {
 		return bound
