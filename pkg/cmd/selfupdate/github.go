@@ -73,6 +73,41 @@ func (g *GitHub) LatestTag(repo string) (string, error) {
 	return payload.TagName, nil
 }
 
+func (g *GitHub) ReleaseAssetNames(repo, tag string) ([]string, error) {
+	if repo == "" {
+		repo = g.cliRepo()
+	}
+	url := g.apiBaseURL() + "/repos/" + repo + "/releases/tags/" + tag
+	resp, err := g.http().Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github release assets: unexpected status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Assets []struct {
+			Name string `json:"name"`
+		} `json:"assets"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(payload.Assets))
+	for _, a := range payload.Assets {
+		names = append(names, a.Name)
+	}
+	return names, nil
+}
+
 func (g *GitHub) DownloadReleaseFile(repo, tag, name, dest string) error {
 	if repo == "" {
 		repo = g.cliRepo()
