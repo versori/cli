@@ -47,6 +47,7 @@ func GetRootCommand() *cobra.Command {
 	configFactory.AddFlags(rootFlags)
 
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(selfupdate.NewUpdateCommand(version))
 	rootCmd.AddCommand(selfupdate.NewVscodeCommand(version))
 
 	// context command
