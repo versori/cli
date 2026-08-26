@@ -152,6 +152,78 @@ func TestVscodeInstallYesInstallsWithForce(t *testing.T) {
 	assertNoConfigYAML(t, home)
 }
 
+func TestVscodeInstallChecksums404DoesNotRetryBareTag(t *testing.T) {
+	home := isolateCmdEnv(t)
+	dir := t.TempDir()
+	writeFakeEditor(t, dir, "code")
+	t.Setenv("PATH", dir)
+
+	vsixBody := []byte("fake-vsix")
+	sum := sha256.Sum256(vsixBody)
+	hash := hex.EncodeToString(sum[:])
+	const vsixName = "versori-vscode-0.1.0.vsix"
+	var bareHits int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/compat.json":
+			_, _ = w.Write([]byte(`{"extension_id":"versori.versori-vscode","releases":[{"vsix":"0.1.0","min_cli":"0.1.0"}]}`))
+		case "/repos/versori/versori-vscode-extension/releases/tags/v0.1.0":
+			_, _ = w.Write([]byte(`{"assets":[{"name":"versori-vscode-0.1.0.vsix"}]}`))
+		case "/versori/versori-vscode-extension/releases/download/v0.1.0/" + vsixName:
+			_, _ = w.Write(vsixBody)
+		case "/versori/versori-vscode-extension/releases/download/v0.1.0/checksums.txt":
+			w.WriteHeader(http.StatusNotFound)
+		case "/repos/versori/versori-vscode-extension/releases/tags/0.1.0",
+			"/versori/versori-vscode-extension/releases/download/0.1.0/" + vsixName,
+			"/versori/versori-vscode-extension/releases/download/0.1.0/checksums.txt":
+			bareHits++
+			// A retry would succeed if we served a complete bare-tag release.
+			if strings.HasSuffix(r.URL.Path, vsixName) {
+				_, _ = w.Write(vsixBody)
+				return
+			}
+			if strings.HasSuffix(r.URL.Path, "checksums.txt") {
+				_, _ = w.Write([]byte(hash + "  " + vsixName + "\n"))
+				return
+			}
+			_, _ = w.Write([]byte(`{"assets":[{"name":"versori-vscode-0.1.0.vsix"},{"name":"checksums.txt"}]}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	var ran bool
+	cmd := testVscodeCmd(t, &vscodeInstall{
+		cliVersion: "0.1.0",
+		client:     srv.Client(),
+		compatURL:  srv.URL + "/compat.json",
+		github: &GitHub{
+			Client:       srv.Client(),
+			ExtRepo:      "versori/versori-vscode-extension",
+			apiBase:      srv.URL,
+			downloadBase: srv.URL,
+		},
+		run: func(name string, args ...string) ([]byte, error) {
+			ran = true
+			return nil, nil
+		},
+	})
+	cmd.SetArgs([]string{"install", "--yes"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("want error when checksums.txt is 404")
+	}
+	if ran {
+		t.Fatal("must not install when checksums.txt is missing")
+	}
+	if bareHits != 0 {
+		t.Fatalf("bare tag requests=%d; want 0 (checksum 404 must not retry the other tag)", bareHits)
+	}
+	assertNoConfigYAML(t, home)
+}
+
 func TestVscodeInstallDoesNotCreateConfigYAML(t *testing.T) {
 	home := isolateCmdEnv(t)
 	cmd := testVscodeCmd(t, &vscodeInstall{

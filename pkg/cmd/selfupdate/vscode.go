@@ -14,6 +14,7 @@
 package selfupdate
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,6 +27,11 @@ import (
 	"github.com/versori/cli/pkg/cmd/flags"
 	"github.com/versori/cli/pkg/utils"
 )
+
+// errReleaseNotFound means the GitHub release tag itself is missing (vsix 404
+// and the release asset list 404). Other 404s, including checksums.txt, must
+// not be treated as a missing tag.
+var errReleaseNotFound = errors.New("github release not found")
 
 type vscodeInstall struct {
 	cliVersion string
@@ -186,7 +192,7 @@ func downloadCompatibleVSIX(g *GitHub, vsixVer, destDir string) (string, error) 
 			return path, nil
 		}
 		last = err
-		if !isNotFound(err) {
+		if !errors.Is(err, errReleaseNotFound) {
 			return "", err
 		}
 	}
@@ -202,11 +208,14 @@ func downloadVSIXAtTag(g *GitHub, repo, tag, want, destDir string) (string, erro
 	if isNotFound(err) {
 		names, listErr := g.ReleaseAssetNames(repo, tag)
 		if listErr != nil {
+			if isNotFound(listErr) {
+				return "", fmt.Errorf("%w: %w", errReleaseNotFound, listErr)
+			}
 			return "", listErr
 		}
 		picked, perr := PickVSIXAsset(names)
 		if perr != nil {
-			return "", err
+			return "", perr
 		}
 		vsixPath = filepath.Join(destDir, filepath.Base(picked))
 		if err = g.DownloadReleaseFile(repo, tag, picked, vsixPath); err != nil {
@@ -218,10 +227,10 @@ func downloadVSIXAtTag(g *GitHub, repo, tag, want, destDir string) (string, erro
 
 	sumsPath := filepath.Join(destDir, "checksums.txt")
 	if err := g.DownloadReleaseFile(repo, tag, "checksums.txt", sumsPath); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to download checksums.txt: %w", err)
 	}
 	if err := VerifySHA256(vsixPath, sumsPath, filepath.Base(vsixPath)); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to verify checksum: %w", err)
 	}
 	return vsixPath, nil
 }
