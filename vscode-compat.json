@@ -1,0 +1,6 @@
+{
+  "extension_id": "versori.versori-vscode",
+  "releases": [
+    { "vsix": "0.1.0", "min_cli": "0.1.0" }
+  ]
+}
