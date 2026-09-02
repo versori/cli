@@ -21,9 +21,7 @@ import (
 )
 
 const (
-	promptVSCode = "Install the Versori extension into VS Code?"
-	promptCursor = "Install the Versori extension into Cursor?"
-	promptBoth   = "Install the Versori extension into:"
+	promptBoth = "Install the Versori extension into:"
 
 	selectBoth   = "Both"
 	selectCancel = "Cancel"
@@ -31,7 +29,7 @@ const (
 
 var (
 	errNoEditors = errors.New("neither VS Code nor Cursor CLI was found; pass --vscode-path or --cursor-path")
-	errNeedTTY   = errors.New("a TTY or --yes is required to install the extension")
+	errNeedTTY   = errors.New("both VS Code and Cursor CLIs were found; a TTY or --yes is required to choose where to install the extension")
 	errCancelled = errors.New("cancelled; no changes were made")
 )
 
@@ -39,15 +37,14 @@ func chooseEditors(resolved []Editor, yes bool, stdinTTY bool) ([]Editor, error)
 	if len(resolved) == 0 {
 		return nil, errNoEditors
 	}
+	if len(resolved) == 1 {
+		return resolved, nil
+	}
 	if yes {
 		return resolved, nil
 	}
 	if !stdinTTY {
 		return nil, errNeedTTY
-	}
-
-	if len(resolved) == 1 {
-		return confirmOneEditor(resolved[0])
 	}
 
 	sel := elements.NewListSelect(promptBoth)
@@ -71,22 +68,6 @@ func chooseEditors(resolved []Editor, yes bool, stdinTTY bool) ([]Editor, error)
 	default:
 		return nil, errCancelled
 	}
-}
-
-func confirmOneEditor(ed Editor) ([]Editor, error) {
-	prompt := promptVSCode
-	if ed.Kind == EditorCursor {
-		prompt = promptCursor
-	}
-
-	confirmed := false
-	if err := elements.NewConfirm(prompt).Confirm(&confirmed); err != nil {
-		return nil, fmt.Errorf("failed to read confirmation: %w", err)
-	}
-	if !confirmed {
-		return nil, nil
-	}
-	return []Editor{ed}, nil
 }
 
 func filterEditors(editors []Editor, kind EditorKind) []Editor {

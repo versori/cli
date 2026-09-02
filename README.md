@@ -36,13 +36,16 @@ versori update
 
 Pin a version with `versori update --version v0.0.9`. This overwrites the `versori` binary you ran (not always `/usr/local/bin`). It also refreshes the Versori VS Code/Cursor extension if it is already installed.
 
-Install the editor extension (prompts; default No):
+Install the editor extension:
 
 ```sh
 versori vscode install
 ```
 
-Pass `--vscode-path` / `--cursor-path` if `code` / `cursor` are not on your PATH. `--yes` skips the prompt (non-interactive).
+If one editor is detected, installation starts immediately. If both VS Code
+and Cursor are detected, choose one or both; `--yes` installs into both without
+prompting. Pass `--vscode-path` / `--cursor-path` if `code` / `cursor` are not
+on your PATH.
 
 ### Download a pre-built binary
 

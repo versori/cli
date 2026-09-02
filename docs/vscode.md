@@ -21,8 +21,9 @@ Install the Versori VS Code / Cursor extension.
 Downloads the latest vsix compatible with this CLI and installs it with
 the editor CLI (--install-extension --force).
 
-Prompts before installing; the default is No. Pass --yes to install into
-every resolved editor without prompting. Non-interactive shells require
+With one resolved editor, installs immediately. If both VS Code and Cursor
+are resolved, prompts you to choose where to install. Pass --yes to install
+into every resolved editor; non-interactive shells with both editors require
 --yes or --confirm.
 
 Use --vscode-path and --cursor-path to point at editor CLIs that are not

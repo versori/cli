@@ -52,18 +52,29 @@ func TestChooseEditors(t *testing.T) {
 		}
 	})
 
-	t.Run("non-tty without yes", func(t *testing.T) {
-		_, err := chooseEditors([]Editor{vscode}, false, false)
+	t.Run("single non-tty installs without yes", func(t *testing.T) {
+		got, err := chooseEditors([]Editor{vscode}, false, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].Kind != EditorVSCode {
+			t.Fatalf("got=%v", got)
+		}
+	})
+
+	t.Run("both non-tty without yes", func(t *testing.T) {
+		_, err := chooseEditors([]Editor{vscode, cursor}, false, false)
 		if !errors.Is(err, errNeedTTY) {
 			t.Fatalf("err=%v; want errNeedTTY", err)
 		}
 	})
 }
 
-func TestVscodeInstallNonTTYWithoutYesDoesNotRun(t *testing.T) {
+func TestVscodeInstallBothEditorsNonTTYWithoutYesDoesNotRun(t *testing.T) {
 	home := isolateCmdEnv(t)
 	dir := t.TempDir()
 	writeFakeEditor(t, dir, "code")
+	writeFakeEditor(t, dir, "cursor")
 	t.Setenv("PATH", dir)
 
 	var ran bool
@@ -88,7 +99,7 @@ func TestVscodeInstallNonTTYWithoutYesDoesNotRun(t *testing.T) {
 	assertNoConfigYAML(t, home)
 }
 
-func TestVscodeInstallYesInstallsWithForce(t *testing.T) {
+func TestVscodeInstallSingleEditorInstallsWithoutPrompt(t *testing.T) {
 	home := isolateCmdEnv(t)
 	dir := t.TempDir()
 	codePath := writeFakeEditor(t, dir, "code")
@@ -133,7 +144,7 @@ func TestVscodeInstallYesInstallsWithForce(t *testing.T) {
 			return nil, nil
 		},
 	})
-	cmd.SetArgs([]string{"install", "--yes"})
+	cmd.SetArgs([]string{"install"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
