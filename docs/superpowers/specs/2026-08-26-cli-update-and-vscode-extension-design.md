@@ -148,11 +148,17 @@ Unresolved editor = not installed. No prompt for it.
 
 ### Prompts (huh, same as other CLI confirms)
 
-- **One** resolved editor: confirm “Install the Versori extension into VS Code?” / “… into Cursor?” Default **No**.
+- **One** resolved editor: install immediately. Running `versori vscode install`
+  is explicit consent, so a second confirmation is redundant.
 - **Both**: select one of: VS Code, Cursor, Both, Cancel.
 - **None**: say neither was found; mention `--vscode-path` / `--cursor-path`; exit non-zero.
 
-Non-TTY: do not run huh (it blocks). Without `--yes` / `--confirm` (existing skip-prompt aliases): print that a TTY or `--yes` is required; exit non-zero. With `--yes`: install into every resolved editor (path flags still limit which binaries exist). `--yes` only skips the question; it is not a versori `--force`.
+Non-TTY: with one resolved editor, install immediately. With both resolved
+editors, do not run huh (it blocks): without `--yes` / `--confirm` (existing
+skip-prompt aliases), print that a TTY or `--yes` is required to choose an
+editor and exit non-zero. With `--yes`, install into every resolved editor
+(path flags still limit which binaries exist). `--yes` only skips the
+multi-editor choice; it is not a versori `--force`.
 
 ### Vsix download
 
@@ -193,7 +199,8 @@ No live GitHub or live `code` in unit tests.
 
 - Picker: table-driven (the examples in §3, plus empty table, equal min_cli, newer vsix with higher min_cli left unpicked).
 - Target-version vs process-version: `update` passes the target string into the picker.
-- Skip-prompt: `--yes` / `--confirm` skip huh (follow `pkg/cmd/flags/skip_prompt.go`).
+- Editor selection: one resolved editor installs without a prompt, including
+  in a non-TTY; both still require the chooser or `--yes` / `--confirm`.
 - Config isolation: commands under test must not create or truncate `~/.versori/config.yaml` (use a fake home / do not call `LoadConfigAndContext` unless needed; these commands do not need org context).
 
 ---
@@ -210,7 +217,8 @@ The planner has this file and the repo, not the design conversation.
 - Picker: newest vsix whose `min_cli <=` decision CLI version; empty → too-old message naming `versori update` and the curl one-liner
 - `update` picker uses **target** CLI version, not in-memory `version` after overwrite — so pinning an older CLI downgrades the vsix if installed
 - `--vscode-path` / `--cursor-path` override; else PATH then the well-known table in §5
-- Prompts: one editor Y/N default No; both → VS Code / Cursor / Both / Cancel; non-TTY requires `--yes`/`--confirm`
+- Prompts: one editor installs immediately; both → VS Code / Cursor / Both /
+  Cancel; a non-TTY with both requires `--yes`/`--confirm`
 - Vsix from `versori/versori-vscode-extension` releases + `checksums.txt`; public download
 - Fail-soft vsix on `update`; fail-hard on `vscode install`
 - Never write `~/.versori/**`, project `.versori`, or editor user settings
@@ -250,8 +258,8 @@ The planner has this file and the repo, not the design conversation.
 - CLI GitHub repo: `versori/cli`
 
 **Constraints (verbatim):**
-- Confirm default No
-- `--yes` / `--confirm` skip the prompt only
+- One resolved editor installs without confirmation
+- `--yes` / `--confirm` skip the two-editor chooser only
 - Checksum required for CLI tarball and vsix
 - Initial table row when first vsix exists: `"vsix": "0.1.0", "min_cli": "0.1.0"`
 - Curl fallback: `curl -fsSL https://raw.githubusercontent.com/versori/cli/main/install.sh | sh`
@@ -269,7 +277,10 @@ The planner has this file and the repo, not the design conversation.
 **Done looks like:**
 - `versori update --help` and `versori vscode install --help` exist; `install.sh` diff empty of vsix/prompt
 - Unit tests cover picker examples in §3 and target-version vs process-version
-- `vscode install` in a fake non-TTY without `--yes` exits non-zero without calling the editor
+- `vscode install` with one resolved editor installs without prompting, even in
+  a fake non-TTY
+- `vscode install` with both resolved editors in a fake non-TTY without `--yes`
+  exits non-zero without calling either editor
 - Commands under test do not write `config.yaml`
 - `make generate` reflects the new commands
 - A developer can add a vsix/`min_cli` row to `vscode-compat.json` without shipping a new CLI
