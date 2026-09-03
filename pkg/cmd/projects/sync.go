@@ -39,17 +39,34 @@ type Sync struct {
 	dryRun        bool
 	assets        bool
 	confirm       bool
+	version       string
+	noPin         bool
+	loadSource    syncFileLoader
+}
+
+type syncFileLoader func(*config.ConfigFactory, syncFileSource) ([]v1.File, error)
+
+// syncFileSource binds an endpoint, response type, and extraction rule. Run
+// consumes this as one unit so selecting version files cannot still extract
+// CurrentFiles (or vice versa).
+type syncFileSource struct {
+	path         string
+	response     any
+	files        func() []v1.File
+	errorMessage string
 }
 
 func NewSync(c *config.ConfigFactory) *cobra.Command {
 	s := &Sync{configFactory: c}
 
 	cmd := &cobra.Command{
-		Use:                   "sync [--project <project-id>] [--directory <directory>]",
+		Use:                   "sync [--project <project-id>] [--directory <directory>] [--version <version-id>] [--no-pin]",
 		DisableFlagsInUseLine: true,
 		Long: `Sync pulls the project files to the local directory. The --project flag is only required the first time you sync a project.
 
 Sync runs in dry-run mode by default and only prints what would be created, updated, or deleted. Pass --confirm to perform the real sync (which overwrites local changes and re-pins .versori).
+
+Pass --version <id> to sync a specific version's files instead of the project's current files. Pass --no-pin to perform the sync without writing .versori, which is how a throwaway comparison checkout avoids claiming the directory.
 
 WARNING: When --confirm is set, this will overwrite any local changes and delete any local files that are not part of the remote project.`,
 		Short: "Sync pulls the project files to the local directory. Dry-run by default; pass --confirm to actually write.",
@@ -62,6 +79,8 @@ WARNING: When --confirm is set, this will overwrite any local changes and delete
 	f.BoolVar(&s.dryRun, "dry-run", false, "Force dry-run (the default when --confirm is omitted). Kept for explicitness; if both --dry-run and --confirm are set, --dry-run wins.")
 	f.BoolVar(&s.assets, "assets", false, "Also sync project assets, removing any that are no longer part of the project from the "+assets.DefaultAssetsDir+" directory")
 	f.BoolVar(&s.confirm, "confirm", false, "Perform the actual sync. Without this flag, sync only prints what would change (dry-run).")
+	f.StringVar(&s.version, "version", "", "Sync the files from a specific version id instead of the project's current files. Assets are always the project's current assets.")
+	f.BoolVar(&s.noPin, "no-pin", false, "Do not write .versori into the target directory. An existing .versori is left untouched.")
 
 	return cmd
 }
@@ -94,16 +113,20 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 
 	projectId := s.projectId.GetFlagOrDie(fullPath)
 
-	project := v1.Project{}
+	versionId, ok := normalizeVersionId(s.version)
+	if !ok {
+		utils.NewExitError().WithMessage("--version requires a version id").Done()
+	}
 
-	err = s.configFactory.
-		NewRequest().
-		WithMethod(http.MethodGet).
-		Into(&project).
-		WithPath("o/:organisation/projects/" + projectId).
-		Do()
+	source := selectSyncFileSource(projectId, versionId)
+	loader := s.loadSource
+	if loader == nil {
+		loader = loadSyncFileSource
+	}
+
+	sourceFiles, err := loader(s.configFactory, source)
 	if err != nil {
-		utils.NewExitError().WithMessage("failed to get project").WithReason(err).Done()
+		utils.NewExitError().WithMessage(source.errorMessage).WithReason(err).Done()
 	}
 
 	existing, dirs := getExistingFiles(fullPath)
@@ -111,7 +134,7 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 	// Write/update all project files
 	var created, updated, unchanged []string
 
-	for _, f := range project.CurrentFiles.Files {
+	for _, f := range sourceFiles {
 		rel, action := updateFile(f, fullPath, existing, s.dryRun)
 
 		switch action {
@@ -152,10 +175,50 @@ func (s *Sync) Run(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	if !shouldWritePin(s.dryRun, s.noPin) {
+		return
+	}
+
 	versoriPath := filepath.Join(fullPath, ".versori")
 	if err := versorifile.Write(versoriPath, &versorifile.VersoriFile{ProjectId: projectId, Context: s.configFactory.Context.Name}); err != nil {
 		utils.NewExitError().WithMessage("failed to write .versori").WithReason(err).Done()
 	}
+}
+
+func selectSyncFileSource(projectId, versionId string) syncFileSource {
+	if versionId == "" {
+		project := &v1.Project{}
+
+		return syncFileSource{
+			path:         "o/:organisation/projects/" + projectId,
+			response:     project,
+			files:        func() []v1.File { return project.CurrentFiles.Files },
+			errorMessage: "failed to get project",
+		}
+	}
+
+	files := &v1.Files{}
+
+	return syncFileSource{
+		path:         versionFilesPath(projectId, versionId),
+		response:     files,
+		files:        func() []v1.File { return files.Files },
+		errorMessage: "failed to get version files",
+	}
+}
+
+func loadSyncFileSource(configFactory *config.ConfigFactory, source syncFileSource) ([]v1.File, error) {
+	err := configFactory.
+		NewRequest().
+		WithMethod(http.MethodGet).
+		Into(source.response).
+		WithPath(source.path).
+		Do()
+	if err != nil {
+		return nil, err
+	}
+
+	return source.files(), nil
 }
 
 func (s *Sync) syncAssets(projectId, fullPath string) {
@@ -506,4 +569,32 @@ func pruneEmptyDirs(fullPath string, dirs []string) {
 	for _, rel := range dirs {
 		_ = os.Remove(filepath.Join(fullPath, rel))
 	}
+}
+
+// versionFilesPath is the API path holding a single version's files. It
+// deliberately matches the path `projects files --version` uses, so the two
+// commands can never drift onto different endpoints.
+func versionFilesPath(projectId, versionId string) string {
+	return "o/:organisation/projects/" + projectId + "/versions/" + versionId + "/files"
+}
+
+// normalizeVersionId trims a --version value and reports whether that value is
+// usable. The returned id is empty in two different situations, which the bool
+// separates: an omitted flag is valid and means "sync the current files"
+// (`"", true`), while a whitespace-only value is a mistake and fails
+// (`"", false`) rather than silently syncing something else.
+func normalizeVersionId(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", raw == ""
+	}
+
+	return trimmed, true
+}
+
+// shouldWritePin reports whether this sync re-pins .versori. Dry-runs never
+// wrote it, and --no-pin opts a real sync out; neither ever deletes a .versori
+// that is already there.
+func shouldWritePin(dryRun, noPin bool) bool {
+	return !dryRun && !noPin
 }

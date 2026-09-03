@@ -43,8 +43,7 @@ func NewUnlink(c *config.ConfigFactory) *cobra.Command {
 		Short: "Unlink a connection from an environment template",
 		Long: `Unlink a connection from an environment (DELETE /o/{organisation}/connections/{id}/link).
 
-The connection itself is kept. Pass --yes or --confirm in non-interactive shells; the VS Code
-extension always passes --yes after its own confirmation modal.`,
+The connection itself is kept. Pass --yes or --confirm in non-interactive shells.`,
 		Run: u.Run,
 	}
 
@@ -102,8 +101,7 @@ func NewDelete(c *config.ConfigFactory) *cobra.Command {
 		Long: `Delete a connection (DELETE /o/{organisation}/connections/{id}).
 
 This removes the connection itself. Unlink it from an environment first if you
-only want to clear the active connection. Pass --yes or --confirm in non-interactive shells;
-the VS Code extension always passes --yes after its own confirmation modal.`,
+only want to clear the active connection. Pass --yes or --confirm in non-interactive shells.`,
 		Run: d.Run,
 	}
 

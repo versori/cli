@@ -64,8 +64,7 @@ versori connections create --project <project-id> --environment <environment-nam
 Delete a connection (DELETE /o/\{organisation\}/connections/\{id\}).
 
 This removes the connection itself. Unlink it from an environment first if you
-only want to clear the active connection. Pass --yes or --confirm in non-interactive shells;
-the VS Code extension always passes --yes after its own confirmation modal.
+only want to clear the active connection. Pass --yes or --confirm in non-interactive shells.
 
 ```sh
 versori connections delete --id <connection-id> [--yes] [flags]
@@ -107,8 +106,7 @@ versori connections list [flags]
 
 Unlink a connection from an environment (DELETE /o/\{organisation\}/connections/\{id\}/link).
 
-The connection itself is kept. Pass --yes or --confirm in non-interactive shells; the VS Code
-extension always passes --yes after its own confirmation modal.
+The connection itself is kept. Pass --yes or --confirm in non-interactive shells.
 
 ```sh
 versori connections unlink --id <connection-id> --template-id <template-id> [--yes] [flags]

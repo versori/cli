@@ -130,8 +130,8 @@ func (d *deleteUser) fetchUsers() []v1.EndUser {
 }
 
 // resolveDeleteUserID accepts a user ULID or an external ID. ULIDs are returned as-is so a
-// caller that already has the platform id (the VS Code delete button) does not round-trip the
-// list. External IDs are matched against the org's end-user list.
+// caller that already has the platform id does not round-trip the list.
+// External IDs are matched against the org's end-user list.
 func resolveDeleteUserID(value string, users []v1.EndUser) (string, error) {
 	if _, err := ulid.Parse(value); err == nil {
 		return value, nil
