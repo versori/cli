@@ -104,12 +104,12 @@ func (u *updater) replaceBinary(cmd *cobra.Command) (string, error) {
 	}
 
 	if u.osName() == "windows" {
-		fmt.Fprintln(cmd.OutOrStdout(), "Windows is not supported for in-place binary update; download a release zip from https://github.com/versori/cli/releases")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Windows is not supported for in-place binary update; download a release zip from https://github.com/versori/cli/releases")
 		return target, nil
 	}
 
 	if versionsEqual(u.cliVersion, target) {
-		fmt.Fprintf(cmd.OutOrStdout(), "versori is already %s\n", target)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "versori is already %s\n", target)
 		return target, nil
 	}
 
@@ -122,7 +122,7 @@ func (u *updater) replaceBinary(cmd *cobra.Command) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create a temp directory: %w", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	extracted, err := u.downloadCLI(target, dir)
 	if err != nil {
@@ -133,7 +133,7 @@ func (u *updater) replaceBinary(cmd *cobra.Command) (string, error) {
 		return "", err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "updated versori to %s\n", target)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "updated versori to %s\n", target)
 	return target, nil
 }
 
@@ -233,7 +233,7 @@ func (u *updater) vsixPass(cmd *cobra.Command, target string) {
 
 	editors := u.resolveEditors(errOut)
 	if len(editors) == 0 {
-		fmt.Fprintln(out, "No VS Code or Cursor CLI was found.")
+		_, _ = fmt.Fprintln(out, "No VS Code or Cursor CLI was found.")
 		return
 	}
 
@@ -241,7 +241,7 @@ func (u *updater) vsixPass(cmd *cobra.Command, target string) {
 	for _, ed := range editors {
 		has, err := HasExtension(ed.Path, ExtensionID, u.run)
 		if err != nil {
-			fmt.Fprintf(errOut, "warning: failed to list extensions for %s: %v\n", ed.Kind, err)
+			_, _ = fmt.Fprintf(errOut, "warning: failed to list extensions for %s: %v\n", ed.Kind, err)
 			continue
 		}
 		if has {
@@ -254,35 +254,35 @@ func (u *updater) vsixPass(cmd *cobra.Command, target string) {
 
 	table, err := u.fetchCompat()
 	if err != nil {
-		fmt.Fprintf(errOut, "warning: failed to fetch the compatibility table: %v\n", err)
+		_, _ = fmt.Fprintf(errOut, "warning: failed to fetch the compatibility table: %v\n", err)
 		return
 	}
 
 	vsixVer, ok := u.pick(vsixCLIVersion(u.cliVersion, target), table)
 	if !ok {
-		fmt.Fprintf(errOut, "warning: %s\n", TooOldMessage())
+		_, _ = fmt.Fprintf(errOut, "warning: %s\n", TooOldMessage())
 		return
 	}
 
 	dir, err := os.MkdirTemp("", "versori-vsix-*")
 	if err != nil {
-		fmt.Fprintf(errOut, "warning: failed to create a temp directory: %v\n", err)
+		_, _ = fmt.Fprintf(errOut, "warning: failed to create a temp directory: %v\n", err)
 		return
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	vsixPath, err := u.downloadExt(vsixVer, dir)
 	if err != nil {
-		fmt.Fprintf(errOut, "warning: failed to download the extension: %v\n", err)
+		_, _ = fmt.Fprintf(errOut, "warning: failed to download the extension: %v\n", err)
 		return
 	}
 
 	for _, ed := range need {
 		if err := InstallVSIX(ed.Path, vsixPath, u.run); err != nil {
-			fmt.Fprintf(errOut, "warning: failed to install the extension into %s: %v\n", ed.Kind, err)
+			_, _ = fmt.Fprintf(errOut, "warning: failed to install the extension into %s: %v\n", ed.Kind, err)
 			continue
 		}
-		fmt.Fprintf(out, "Updated the Versori extension in %s.\n", ed.Kind)
+		_, _ = fmt.Fprintf(out, "Updated the Versori extension in %s.\n", ed.Kind)
 	}
 }
 
@@ -299,7 +299,7 @@ func (u *updater) resolveEditors(errOut io.Writer) []Editor {
 	} {
 		path, _, err := LookEditor(item.kind, item.flag)
 		if err != nil {
-			fmt.Fprintf(errOut, "warning: %v\n", err)
+			_, _ = fmt.Fprintf(errOut, "warning: %v\n", err)
 			continue
 		}
 		if path == "" {
@@ -381,7 +381,7 @@ func copyFile(src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 	if err != nil {

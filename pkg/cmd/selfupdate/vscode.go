@@ -107,7 +107,7 @@ func (v *vscodeInstall) install(cmd *cobra.Command) error {
 		return err
 	}
 	if len(chosen) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "Aborted; no changes were made.")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted; no changes were made.")
 		return nil
 	}
 
@@ -125,7 +125,7 @@ func (v *vscodeInstall) install(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to create a temp directory: %w", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	vsixPath, err := downloadCompatibleVSIX(v.gitHub(), vsixVer, dir)
 	if err != nil {
@@ -136,7 +136,7 @@ func (v *vscodeInstall) install(cmd *cobra.Command) error {
 		if err := InstallVSIX(ed.Path, vsixPath, v.run); err != nil {
 			return fmt.Errorf("failed to install the extension into %s: %w", ed.Kind, err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Installed the Versori extension into %s.\n", ed.Kind)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Installed the Versori extension into %s.\n", ed.Kind)
 	}
 	return nil
 }
