@@ -170,6 +170,14 @@ func TestVerifySHA256(t *testing.T) {
 	if err := VerifySHA256(path, emptySums, filename); err == nil {
 		t.Fatal("missing filename: want error")
 	}
+
+	superSums := filepath.Join(dir, "super-checksums.txt")
+	if err := os.WriteFile(superSums, []byte(hash+"  x_"+filename+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifySHA256(path, superSums, filename); err == nil {
+		t.Fatal("longer filename containing the target: want error")
+	}
 }
 
 func TestExtractVersoriBinary(t *testing.T) {

@@ -84,10 +84,6 @@ sudo mv onto the resolved path (never sudo versori update).`,
 	return cmd
 }
 
-func vsixCLIVersion(current, target string) string {
-	return target
-}
-
 func (u *updater) runE(cmd *cobra.Command, _ []string) error {
 	target, err := u.replaceBinary(cmd)
 	if err != nil {
@@ -258,7 +254,7 @@ func (u *updater) vsixPass(cmd *cobra.Command, target string) {
 		return
 	}
 
-	vsixVer, ok := u.pick(vsixCLIVersion(u.cliVersion, target), table)
+	vsixVer, ok := u.pick(target, table)
 	if !ok {
 		_, _ = fmt.Fprintf(errOut, "warning: %s\n", TooOldMessage())
 		return

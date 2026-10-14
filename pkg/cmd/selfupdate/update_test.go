@@ -30,15 +30,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestVsixCLIVersionUsesTarget(t *testing.T) {
-	if got := vsixCLIVersion("0.0.1", "v0.0.9"); got != "v0.0.9" {
-		t.Fatalf("vsixCLIVersion=%q; want target v0.0.9", got)
-	}
-	if got := vsixCLIVersion("v0.0.9", "v1.2.3"); got != "v1.2.3" {
-		t.Fatalf("vsixCLIVersion=%q; want target v1.2.3", got)
-	}
-}
-
 func TestUpdateVsixPassUsesTargetNotCurrent(t *testing.T) {
 	home := isolateCmdEnv(t)
 	dir := t.TempDir()

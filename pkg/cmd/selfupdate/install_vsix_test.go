@@ -67,6 +67,15 @@ func TestHasExtension(t *testing.T) {
 		}
 	})
 
+	t.Run("longer id is not a match", func(t *testing.T) {
+		ok, _ := HasExtension("/path/to/code", ExtensionID, func(name string, args ...string) ([]byte, error) {
+			return []byte("other.versori.versori-vscode-extra\n"), nil
+		})
+		if ok {
+			t.Fatal("HasExtension: substring must not match")
+		}
+	})
+
 	t.Run("false", func(t *testing.T) {
 		ok, err := HasExtension("/path/to/code", ExtensionID, func(name string, args ...string) ([]byte, error) {
 			return []byte("foo.bar\nbaz.qux\n"), nil

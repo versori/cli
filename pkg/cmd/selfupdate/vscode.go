@@ -237,5 +237,6 @@ func downloadVSIXAtTag(g *GitHub, repo, tag, want, destDir string) (string, erro
 }
 
 func isNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "status 404")
+	var se *statusError
+	return errors.As(err, &se) && se.status == http.StatusNotFound
 }

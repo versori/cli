@@ -53,5 +53,10 @@ func HasExtension(bin, id string, run execRunner) (bool, error) {
 		}
 		return false, err
 	}
-	return strings.Contains(string(out), id), nil
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.EqualFold(strings.TrimSpace(line), id) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

@@ -34,6 +34,17 @@ const (
 	githubDLBase   = "https://github.com"
 )
 
+// statusError is returned for any non-200 GitHub response so callers can
+// branch on the status code instead of matching error text.
+type statusError struct {
+	op     string
+	status int
+}
+
+func (e *statusError) Error() string {
+	return fmt.Sprintf("%s: unexpected status %d", e.op, e.status)
+}
+
 type GitHub struct {
 	Client       *http.Client
 	CLIRepo      string
@@ -58,7 +69,7 @@ func (g *GitHub) LatestTag(repo string) (string, error) {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("github latest: unexpected status %d", resp.StatusCode)
+		return "", &statusError{op: "github latest", status: resp.StatusCode}
 	}
 
 	var payload struct {
@@ -89,7 +100,7 @@ func (g *GitHub) ReleaseAssetNames(repo, tag string) ([]string, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("github release assets: unexpected status %d", resp.StatusCode)
+		return nil, &statusError{op: "github release assets", status: resp.StatusCode}
 	}
 
 	var payload struct {
@@ -121,7 +132,7 @@ func (g *GitHub) DownloadReleaseFile(repo, tag, name, dest string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		return fmt.Errorf("github download %s: unexpected status %d", name, resp.StatusCode)
+		return &statusError{op: "github download " + name, status: resp.StatusCode}
 	}
 
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -152,11 +163,9 @@ func VerifySHA256(path, checksumsPath, filename string) error {
 
 	var expected string
 	for _, line := range strings.Split(string(sums), "\n") {
-		if !strings.Contains(line, filename) {
-			continue
-		}
+		// Format is "<hash>  <name>"; sha256sum binary mode prefixes the name with "*".
 		fields := strings.Fields(line)
-		if len(fields) == 0 {
+		if len(fields) != 2 || strings.TrimPrefix(fields[1], "*") != filename {
 			continue
 		}
 		expected = fields[0]
