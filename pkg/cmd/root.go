@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/versori/cli/pkg/cmd/config"
+	"github.com/versori/cli/pkg/cmd/selfupdate"
 )
 
 func Execute() {
@@ -46,6 +47,8 @@ func GetRootCommand() *cobra.Command {
 	configFactory.AddFlags(rootFlags)
 
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(selfupdate.NewUpdateCommand(version))
+	rootCmd.AddCommand(selfupdate.NewVscodeCommand(version))
 
 	// context command
 	ctxCommand := newCtxCommand(configFactory)

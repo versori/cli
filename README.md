@@ -26,6 +26,27 @@ VERSORI_VERSION=v0.0.1 curl -fsSL https://raw.githubusercontent.com/versori/cli/
 
 Supported platforms: Linux and macOS, on `amd64` and `arm64`. Windows users should download a pre-built binary from the releases page instead.
 
+### Update
+
+Once installed, update the CLI in place:
+
+```sh
+versori update
+```
+
+Pin a version with `versori update --version v0.0.9`. This overwrites the `versori` binary you ran (not always `/usr/local/bin`). It also refreshes the Versori VS Code/Cursor extension if it is already installed.
+
+Install the editor extension:
+
+```sh
+versori vscode install
+```
+
+If one editor is detected, installation starts immediately. If both VS Code
+and Cursor are detected, choose one or both; `--yes` installs into both without
+prompting. Pass `--vscode-path` / `--cursor-path` if `code` / `cursor` are not
+on your PATH.
+
 ### Download a pre-built binary
 
 Pre-built binaries for Linux, macOS, and Windows (amd64 and arm64) are available on the [GitHub releases page](https://github.com/versori/cli/releases). Download the archive for your platform, extract it, and move the `versori` binary somewhere on your `PATH`.
