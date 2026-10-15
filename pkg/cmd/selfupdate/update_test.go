@@ -250,8 +250,17 @@ func TestUpdateReplacesWritableBinary(t *testing.T) {
 		},
 	})
 	cmd.SetArgs([]string{"--version", "v0.0.9"})
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
+	}
+	resolved, err := filepath.EvalSymlinks(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "location: " + resolved; !strings.Contains(stdout.String(), want) {
+		t.Fatalf("stdout=%q; want it to contain %q", stdout.String(), want)
 	}
 
 	got, err := os.ReadFile(dest)
