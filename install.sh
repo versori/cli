@@ -3,7 +3,7 @@ set -e
 
 REPO="versori/cli"
 BINARY_NAME="versori"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -112,6 +112,9 @@ main() {
   [ -f "$BINARY" ] || die "Binary '${BINARY_NAME}' not found in the archive."
 
   chmod +x "$BINARY"
+
+  # Create a custom INSTALL_DIR if it does not exist yet (best effort)
+  [ -d "$INSTALL_DIR" ] || mkdir -p "$INSTALL_DIR" 2>/dev/null || true
 
   # Install – try without sudo first, fall back to sudo
   if [ -w "$INSTALL_DIR" ]; then

@@ -21,7 +21,13 @@ curl -fsSL https://raw.githubusercontent.com/versori/cli/main/install.sh | sh
 To pin to a specific version, set `VERSORI_VERSION`:
 
 ```sh
-VERSORI_VERSION=v0.0.1 curl -fsSL https://raw.githubusercontent.com/versori/cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/versori/cli/main/install.sh | VERSORI_VERSION=v0.0.1 sh
+```
+
+To install somewhere other than `/usr/local/bin` (for example, without admin rights), set `INSTALL_DIR`. Set it on `sh`, not on `curl`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/versori/cli/main/install.sh | INSTALL_DIR="$HOME/.local/bin" sh
 ```
 
 Supported platforms: Linux and macOS, on `amd64` and `arm64`. Windows users should download a pre-built binary from the releases page instead.
