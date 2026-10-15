@@ -129,7 +129,7 @@ func (u *updater) replaceBinary(cmd *cobra.Command) (string, error) {
 		return "", err
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "updated versori to %s\n", target)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "updated versori to %s\nlocation: %s\n", target, dest)
 	return target, nil
 }
 
