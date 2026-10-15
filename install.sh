@@ -3,6 +3,8 @@ set -e
 
 REPO="versori/cli"
 BINARY_NAME="versori"
+# Remember whether the caller chose the directory; only the default may fall back.
+INSTALL_DIR_USER_SET="${INSTALL_DIR:+1}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
 # ---------------------------------------------------------------------------
@@ -116,12 +118,19 @@ main() {
   # Create a custom INSTALL_DIR if it does not exist yet (best effort)
   [ -d "$INSTALL_DIR" ] || mkdir -p "$INSTALL_DIR" 2>/dev/null || true
 
-  # Install – try without sudo first, fall back to sudo
+  # Install – try without sudo first, then sudo. If the default directory
+  # cannot be written either way, fall back to ~/.local/bin (no admin needed).
   if [ -w "$INSTALL_DIR" ]; then
     mv "$BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
   else
     info "Writing to ${INSTALL_DIR} requires elevated permissions (sudo)..."
-    sudo mv "$BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
+    if ! sudo mv "$BINARY" "${INSTALL_DIR}/${BINARY_NAME}"; then
+      [ -z "$INSTALL_DIR_USER_SET" ] || die "Could not write to ${INSTALL_DIR}."
+      INSTALL_DIR="${HOME}/.local/bin"
+      info "Could not install to /usr/local/bin; installing to ${INSTALL_DIR} instead."
+      mkdir -p "$INSTALL_DIR" || die "Could not create ${INSTALL_DIR}."
+      mv "$BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
+    fi
   fi
 
   ok "${BINARY_NAME} ${VERSION} installed to ${INSTALL_DIR}/${BINARY_NAME}"

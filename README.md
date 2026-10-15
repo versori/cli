@@ -24,6 +24,8 @@ To pin to a specific version, set `VERSORI_VERSION`:
 curl -fsSL https://raw.githubusercontent.com/versori/cli/main/install.sh | VERSORI_VERSION=v0.0.1 sh
 ```
 
+If `/usr/local/bin` is not writable and `sudo` is unavailable or blocked, the script installs to `~/.local/bin` instead. Make sure that folder is on your `PATH`.
+
 To install somewhere other than `/usr/local/bin` (for example, without admin rights), set `INSTALL_DIR`. Set it on `sh`, not on `curl`:
 
 ```sh
