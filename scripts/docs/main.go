@@ -24,7 +24,7 @@ import (
 
 	"github.com/spf13/cobra/doc"
 	"github.com/versori/cli/pkg/cmd"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Patterns that Mintlify's MDX parser would otherwise mis-read as JSX and refuse

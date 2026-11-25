@@ -39,7 +39,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // configPath is the path to the versori config file shared by every step in
