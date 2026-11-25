@@ -226,7 +226,7 @@ versori projects logs  [flags]
 * `--environment`: The environment to retrieve logs for. e.g. (production, staging)
 
 * `-h`, `--help`: help for logs
-* `--limit`: How many logs to print. 0 is one server-default page. Any larger value is fetched in pages of at most 1000, with no maximum.
+* `--limit`: How many logs to print. 0 returns 500. Any larger value is fetched in pages of at most 1000, with no maximum.
 
 * `--order`: Sort order for returned logs (asc or desc). Defaults to asc; the platform API defaults to desc.
 

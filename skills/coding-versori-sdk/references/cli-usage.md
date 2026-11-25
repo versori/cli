@@ -499,7 +499,7 @@ Fetch workflow execution logs for one project + environment. Output is **always 
 - `--since <duration>` — trailing window from now (default `24h`). Examples: `30s`, `15m`, `2h30m`, `168h`. Mutually exclusive with `--start`/`--end`. Go durations have no `d` unit, so 7 days is `168h`. This is not a retention cap.
 - `--start <timestamp>` — absolute window start. Accepts RFC3339 (`2026-06-24T00:00:00Z`), `YYYY-MM-DDTHH:MM:SS`, or `YYYY-MM-DD`. Mutually exclusive with `--since`.
 - `--end <timestamp>` — absolute window end (same formats; defaults to **7 days after `--start`** when omitted). Requires `--start`.
-- `--limit <n>` — how many lines to print. There is no maximum. `0` (the default) is a single request with no page size, and the server returns its default page of **500**. `1`–`1000` is one request of that size. Above 1000 the CLI fetches pages of at most 1000 until it has printed that many lines or the window runs out. The API itself rejects a page size above 1000; the CLI never sends one.
+- `--limit <n>` — how many lines to print. There is no maximum. `0` (the default) returns **500** lines. `1`–`1000` is one request of that size. Above 1000 the CLI fetches pages of at most 1000 until it has printed that many lines or the window runs out. The API itself rejects a page size above 1000; the CLI never sends one.
 - `--order asc|desc` — sort order (default `asc`; the platform API's own default is `desc`). `asc` returns the oldest lines in the window first.
 - `--search <query>` — server-side filter; useful for narrowing to one execution by ID, a task name, or an error substring.
 
@@ -519,7 +519,7 @@ Reason:
   API Details: Page size must be between 1 and 1000
 ```
 
-`--limit 0` (the default) is one page of the server default (500 lines). It does not mean "everything in the window". To read more, pass `--limit` with the number of lines you want. That number is not capped.
+`--limit 0` (the default) returns 500 lines. It does not mean "everything in the window". To read more, pass `--limit` with the number of lines you want. That number is not capped.
 
 **Paging inside a window.** `--limit` above 1000 keeps reading the same `--since` / `--start` / `--end` window until that many lines are printed or the window runs out. Each API request is still at most 1000 lines:
 
