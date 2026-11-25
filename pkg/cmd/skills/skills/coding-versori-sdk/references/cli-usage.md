@@ -485,9 +485,9 @@ Deploy a project and upload the project asset files as well.
 
 Add `--dry-run` to show what would happen without executing.
 
-### `versori projects logs --environment <env> [--project <id>] [--since <duration>] [--start <ts>] [--end <ts>] [--limit <n>] [--search <query>]`
+### `versori projects logs --environment <env> [--project <id>] [--since <duration>] [--start <ts>] [--end <ts>] [--limit <n>] [--order asc|desc] [--search <query>]`
 
-Fetch workflow execution logs for one project + environment. Output is **always one JSON object per line** on stdout, ordered ascending by time — the global `-o` flag is ignored.
+Fetch workflow execution logs for one project + environment. Output is **always one JSON object per line** on stdout, in `--order` (default ascending) — the global `-o` flag is ignored.
 
 **Required:**
 
@@ -496,18 +496,20 @@ Fetch workflow execution logs for one project + environment. Output is **always 
 **Optional:**
 
 - `--project <id>` — defaults from `.versori` when inside a synced project directory.
-- `--since <duration>` — trailing window from now (default `24h`). Examples: `30s`, `15m`, `2h30m`. Mutually exclusive with `--start`/`--end`. Note: the API does not return logs older than ~7 days regardless of this value.
+- `--since <duration>` — trailing window from now (default `24h`). Examples: `30s`, `15m`, `2h30m`, `168h`. Mutually exclusive with `--start`/`--end`. Go durations have no `d` unit, so 7 days is `168h`. This is not a retention cap.
 - `--start <timestamp>` — absolute window start. Accepts RFC3339 (`2026-06-24T00:00:00Z`), `YYYY-MM-DDTHH:MM:SS`, or `YYYY-MM-DD`. Mutually exclusive with `--since`.
 - `--end <timestamp>` — absolute window end (same formats; defaults to **7 days after `--start`** when omitted). Requires `--start`.
-- `--limit <n>` — page size (max entries to return). Must be **1–1000**. `0` (the default) omits the page-size parameter entirely, so the server applies its own default page. **Do not pass a value above 1000.**
+- `--limit <n>` — how many lines to print. There is no maximum. `0` (the default) is a single request with no page size, and the server returns its default page of **500**. `1`–`1000` is one request of that size. Above 1000 the CLI fetches pages of at most 1000 until it has printed that many lines or the window runs out. The API itself rejects a page size above 1000; the CLI never sends one.
+- `--order asc|desc` — sort order (default `asc`; the platform API's own default is `desc`). `asc` returns the oldest lines in the window first.
 - `--search <query>` — server-side filter; useful for narrowing to one execution by ID, a task name, or an error substring.
 
 **Time window rules:**
 - `--since` and `--start`/`--end` are mutually exclusive — passing both exits with an error.
 - `--end` must be after `--start`; omitting `--end` defaults to 7 days after `--start`.
-- The window (start→end) must be at most 7 days wide; the API rejects wider ranges with `time range must be less than 7 days`.
+- One request's window must not be **wider than 7 days**. The API rejects a wider range with `time range must be less than 7 days`. A window of exactly 7 days (`168h`, or `--end` omitted) is accepted.
+- That 7-day rule is the width of one query, not how far back logs exist. To read an earlier week, set `--end` to the previous window's `--start` and `--start` to 7 days before that, and repeat. How far back a line still exists depends on that environment's log store.
 
-**`--limit` must be between 1 and 1000 — values above 1000 are rejected, not silently capped.** Passing `--limit 1001` (or `5000`) fails the whole call with:
+**The API rejects a page size above 1000.** The CLI pages instead of sending one. A direct request with `first=1001` still fails with:
 
 ```
 Message:
@@ -517,7 +519,15 @@ Reason:
   API Details: Page size must be between 1 and 1000
 ```
 
-`--limit 0` (the default) is safe — it just omits the page-size param and lets the server return its default page. A single request therefore returns **at most 1000 entries**, and the CLI does **not** auto-paginate, so one call shows at most one page. Don't assume you've seen the full history of a busy environment from one call. When a window is likely to exceed 1000 entries, narrow it: shrink `--since`, add a `--search` filter (e.g. an `executionId`, task name, or error substring), or filter to `severity == "error"`/`"warn"` with `jq`. Treat "exactly 1000 lines returned" as a signal that you're probably truncated and should narrow further.
+`--limit 0` (the default) is one page of the server default (500 lines). It does not mean "everything in the window". To read more, pass `--limit` with the number of lines you want. That number is not capped.
+
+**Paging inside a window.** `--limit` above 1000 keeps reading the same `--since` / `--start` / `--end` window until that many lines are printed or the window runs out. Each API request is still at most 1000 lines:
+
+- When the response includes `nextToken`, the next request sends it as `next_token`. GCP-backed environments do this.
+- When a full page has no token (CloudWatch), the CLI continues from the last line's timestamp: that becomes the next `--start` for `asc`, or the next `--end` for `desc`. The bound is inclusive, and a backend that repeats the page is ignored, so lines already printed are not printed again.
+- If a full page sits on one timestamp and the backend returns no token, the CLI stops and writes the reason to stderr. That instant cannot be split further.
+
+`--limit` of 1000 or less is still a single page. Exactly 1000 lines on that call means the window was cut off; stderr says to re-run with a higher `--limit`. `--search` (an `executionId`, task name, or error substring) and a `jq` severity filter still narrow what you have to read. To go further back than the current window, step `--start`/`--end` as above — do not keep widening `--since`.
 
 **There is no `--follow` / `-f` flag.** Logs are pulled once per invocation. To tail while a workflow runs, poll in a loop:
 
